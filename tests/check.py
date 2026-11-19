@@ -19,7 +19,7 @@ sys.dont_write_bytecode = True
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "wiki"))
 import config  # paths only
-D = config.DEFAULTS
+D = config.resolve()
 
 
 def manifest(root):
@@ -195,6 +195,19 @@ def main():
                 hits.append((rel, w[:1] + "*" * (len(w) - 1)))  # masked so the report never repeats it
     say("    no-name: %d files scanned (site/ + tracked), %d matches %s; allow-list %s" % (len(set(paths)), len(hits), hits[:5], sorted(allow) or "empty"))
     ok &= not hits
+    # absolute machine paths (work/scratch/home) in tracked files and site/
+    ppat = re.compile(r"(?<![\w.~-])/(?:" + "work" + "space|" + "tm" + "p|" + "ho" + "me" + r")(?:/|\b)")
+    phits = []
+    for p in sorted(set(paths)):
+        if not os.path.isfile(p):
+            continue
+        b = open(p, "rb").read()
+        if b"\0" in b[:8192]:
+            continue
+        for m in ppat.finditer(b.decode("utf-8", "replace")):
+            phits.append((os.path.relpath(p, REPO), m.group(0)))
+    say("    abs-paths: %d files scanned (site/ + tracked), %d matches %s; allow-list empty" % (len(set(paths)), len(phits), phits[:5]))
+    ok &= not phits
     # (c)
     src = source_counts()
     gen, _ = site_counts(site)

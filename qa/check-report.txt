@@ -1,10 +1,11 @@
-(a) twice-regen: diff -r exit 0; manifest sha256 run1 8fe922be3637a92fa9901b4d5b960b2f2cee62049963d4ea0879333200c703b5 run2 8fe922be3637a92fa9901b4d5b960b2f2cee62049963d4ea0879333200c703b5; files 1391 -> IDENTICAL
-    committed site manifest sha256 8fe922be3637a92fa9901b4d5b960b2f2cee62049963d4ea0879333200c703b5 -> IDENTICAL
-(b) link check: 14944 internal href/src checked, 0 broken
+(a) twice-regen: diff -r exit 0; manifest sha256 run1 df299aeda4c53c4790fc16ae15da19e943901237c2e261a72b58eb4cc22a146b run2 df299aeda4c53c4790fc16ae15da19e943901237c2e261a72b58eb4cc22a146b; files 1393 -> IDENTICAL
+    committed site manifest sha256 df299aeda4c53c4790fc16ae15da19e943901237c2e261a72b58eb4cc22a146b -> IDENTICAL
+(b) link check: 14963 internal href/src checked, 0 broken
     fonts: 0 font files / @font-face / web-font refs []
     LICENCE: site/LICENCE present and identical to repo LICENCE (CC BY-ND 4.0 legal code): OK
-    footer: 697 HTML pages, 0 without the CC BY-ND 4.0 attribution footer []
-    no-name: 1415 files scanned (site/ + tracked), 0 matches []; allow-list empty
+    footer: 698 HTML pages, 0 without the CC BY-ND 4.0 attribution footer []
+    no-name: 1417 files scanned (site/ + tracked), 0 matches []; allow-list empty
+    abs-paths: 1417 files scanned (site/ + tracked), 0 matches []; allow-list empty
 (c) counts
     item                                 source     wiki  match
     artdraft                                 41       41  OK

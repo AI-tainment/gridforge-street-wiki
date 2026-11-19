@@ -9,7 +9,8 @@
 
     python3 wiki/build.py --out site
 
-Reads the source trees (read-only, defaults in wiki/config.py) and writes a static,
+Reads the source trees (read-only; paths from flags, GFWIKI_* env vars or
+wiki/local_config.json, see wiki/config.py) and writes a static,
 relative-link-only site (GitHub Pages ready: index.html at the root, .nojekyll).
 Deterministic: sorted iteration, no timestamps, fixed render settings.
 &quot;&quot;&quot;
@@ -58,7 +59,7 @@ SCOPE_NOTE = (&quot;The CC BY-ND 4.0 licence covers the owner&#x27;s own compila
 # itself out of this file.
 _N1, _N2 = &quot;[Pp][Hh][Ii][Ll]&quot;, &quot;[Rr][Oo][Bb][Ii][Nn][Ss][Oo][Nn]&quot;
 REDACT = [
-    (re.compile(r&quot;(?:file://)?/home/&quot; + _N1 + r&quot;\S*&quot;), &quot;[local path]&quot;),
+    (re.compile(r&quot;(?:file://)?/&quot; + &quot;home/&quot; + _N1 + r&quot;\S*&quot;), &quot;[local path]&quot;),
     (re.compile(r&quot;(?:qa/)?DECISIONS-FOR-&quot; + _N1 + r&quot;(?:\.md)?&quot;), &quot;the local-only qa decisions note&quot;),
     (re.compile(r&quot;\b&quot; + _N1 + r&quot;\s+&quot; + _N2 + r&quot;\b&quot;), &quot;the owner&quot;),
     (re.compile(r&quot;\b&quot; + _N1 + r&quot;(?:&#x27;|&amp;#x27;|\u2019)s\b&quot;), &quot;the owner&#x27;s&quot;),
@@ -67,10 +68,18 @@ REDACT = [
 TEXT_EXT = (&quot;.html&quot;, &quot;.svg&quot;, &quot;.css&quot;, &quot;.js&quot;, &quot;.json&quot;, &quot;.md&quot;, &quot;.txt&quot;, &quot;.py&quot;, &quot;.war&quot;, &quot;.sh&quot;)
 
 
+# Absolute machine paths never reach the site: each source root becomes a &lt;name&gt;
+# placeholder, and any other absolute work/scratch/home path becomes &quot;[local path]&quot;.
+ABS_PATH = re.compile(r&quot;(?&lt;![\w.~-])/(?:&quot; + &quot;work&quot; + &quot;space|&quot; + &quot;tm&quot; + &quot;p|&quot; + &quot;ho&quot; + &quot;me&quot; + r&quot;)(?:/[^\s\&quot;&#x27;&lt;&gt;()`,;]*)?&quot;)
+SOURCE_ROOTS = []  # [(absolute root, placeholder)], longest first; set in main()
+
+
 def redact(text):
+    for root, ph in SOURCE_ROOTS:
+        text = text.replace(root, ph)
     for rx, rep in REDACT:
         text = rx.sub(rep, text)
-    return text
+    return ABS_PATH.sub(&quot;[local path]&quot;, text)
 
 
 def badge(st):
@@ -138,10 +147,15 @@ def unique_slugs(items):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument(&quot;--out&quot;, default=os.path.join(REPO, &quot;site&quot;))
-    for k, v in config.DEFAULTS.items():
-        ap.add_argument(&quot;--&quot; + k.replace(&quot;_&quot;, &quot;-&quot;), dest=k, default=v)
+    for k in config.SOURCES:
+        ap.add_argument(&quot;--&quot; + k.replace(&quot;_&quot;, &quot;-&quot;), dest=k, default=None,
+                        help=&quot;%s (env %s)&quot; % (config.SOURCES[k][1], config.env_name(k)))
     ap.add_argument(&quot;--known-status&quot;, default=os.path.join(HERE, &quot;known_status.json&quot;))
     a = ap.parse_args(argv)
+    paths = config.require(config.resolve({k: getattr(a, k) for k in config.SOURCES}))
+    for k, v in paths.items():
+        setattr(a, k, v)
+    SOURCE_ROOTS[:] = sorted(((v, &quot;&lt;%s&gt;&quot; % k) for k, v in paths.items()), key=lambda t: (-len(t[0]), t[1]))
 
     known = json.load(open(a.known_status, encoding=&quot;utf-8&quot;))
     items = loaders.load_atlas(a.atlas, known)
@@ -269,7 +283,7 @@ def main(argv=None):
 &lt;table class=&quot;grid&quot;&gt;&lt;tr&gt;&lt;th&gt;Category&lt;/th&gt;&lt;th&gt;Items&lt;/th&gt;&lt;th&gt;Status&lt;/th&gt;&lt;/tr&gt;{rows}&lt;tr&gt;&lt;th&gt;Total&lt;/th&gt;&lt;th&gt;{len(items)}&lt;/th&gt;&lt;th&gt;&lt;/th&gt;&lt;/tr&gt;&lt;/table&gt;
 &lt;h2&gt;Status labels&lt;/h2&gt;&lt;ul class=&quot;legend&quot;&gt;{legend}&lt;/ul&gt;
 &lt;h2&gt;Not included&lt;/h2&gt;&lt;ul&gt;
-&lt;li&gt;Third-party asset kits elsewhere under /workspace/gridforge-art (Kenney, KayKit, Quaternius, cartoon-city): not street-furniture sources for this wiki and under their own licences.&lt;/li&gt;
+&lt;li&gt;Third-party asset kits elsewhere in the gridforge-art tree (Kenney, KayKit, Quaternius, cartoon-city): not street-furniture sources for this wiki and under their own licences.&lt;/li&gt;
 &lt;li&gt;Spec 020 &lt;code&gt;_old/&lt;/code&gt; (r1 files kept for diffing) and LOD1/LOD2 renders (LOD file names are listed on each 3D page).&lt;/li&gt;
 &lt;li&gt;The SI PDFs in the atlas &lt;code&gt;refs/&lt;/code&gt;, and the atlas&#x27; own interactive app (it loads web fonts); only its generated face SVGs are used.&lt;/li&gt;
 &lt;li&gt;No Transport typeface, no web fonts, no location or personal data.&lt;/li&gt;&lt;/ul&gt;&quot;&quot;&quot;
@@ -312,7 +326,7 @@ def main(argv=None):
         for dp, dn, fn in os.walk(os.path.join(REPO, d)):
             dn[:] = sorted(x for x in dn if x != &quot;__pycache__&quot;)
             for f in sorted(fn):
-                if not f.endswith((&quot;.pyc&quot;,)):
+                if not f.endswith((&quot;.pyc&quot;,)) and f != &quot;local_config.json&quot;:
                     code_files.append(os.path.relpath(os.path.join(dp, f), REPO))
     code_files += [f for f in CODE_TOP if os.path.exists(os.path.join(REPO, f))]
     code_files.sort()
@@ -327,7 +341,7 @@ def main(argv=None):
         lis.append(&#x27;&lt;li&gt;&lt;a href=&quot;view/%s.html&quot;&gt;%s&lt;/a&gt; (%d bytes)&lt;/li&gt;&#x27; % (f, E_(f), len(data)))
     s.page(&quot;code/index.html&quot;, &quot;Code&quot;, &quot;&quot;&quot;&lt;h1&gt;Generator code&lt;/h1&gt;
 &lt;p&gt;The whole wiki is regenerated from the sources by one command:&lt;/p&gt;&lt;pre&gt;python3 wiki/build.py --out site&lt;/pre&gt;
-&lt;p&gt;Source paths default to the local GridForge trees and can be overridden (&lt;code&gt;--atlas&lt;/code&gt;, &lt;code&gt;--matrix&lt;/code&gt;, &lt;code&gt;--art-placeholders&lt;/code&gt;, &lt;code&gt;--kit020&lt;/code&gt;, &lt;code&gt;--kit020-dir&lt;/code&gt;, &lt;code&gt;--look&lt;/code&gt;). Checks: &lt;code&gt;python3 tests/check.py&lt;/code&gt; (twice-regen byte identity, link check, item counts).&lt;/p&gt;
+&lt;p&gt;Source paths come from flags (&lt;code&gt;--atlas&lt;/code&gt;, &lt;code&gt;--matrix&lt;/code&gt;, &lt;code&gt;--art-placeholders&lt;/code&gt;, &lt;code&gt;--kit020&lt;/code&gt;, &lt;code&gt;--kit020-dir&lt;/code&gt;, &lt;code&gt;--look&lt;/code&gt;), &lt;code&gt;GFWIKI_*&lt;/code&gt; environment variables or a gitignored &lt;code&gt;wiki/local_config.json&lt;/code&gt; (see &lt;code&gt;wiki/local_config.json.example&lt;/code&gt;). Checks: &lt;code&gt;python3 tests/check.py&lt;/code&gt; (twice-regen byte identity, link check, item counts).&lt;/p&gt;
 &lt;ul&gt;%s&lt;/ul&gt;&quot;&quot;&quot; % &quot;&quot;.join(lis))
 
     s.flush()

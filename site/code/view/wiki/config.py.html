@@ -4,15 +4,60 @@
 <body><header><a class="brand" href="../../../index.html">GridForge Street Wiki</a>
 <nav><a href="../../../cat/signs.html">Signs</a><a href="../../../cat/markings.html">Road markings</a><a href="../../../cat/furniture.html">Street furniture (2D)</a><a href="../../../cat/matrix.html">Matrix glyphs and pictograms</a><a href="../../../cat/artdraft.html">Art drafts (batches 10-12)</a><a href="../../../cat/furniture3d.html">3D street furniture</a><a href="../../../az.html">A-Z / search</a><a href="../../../licences.html">Licences</a><a href="../../index.html">Code</a></nav></header>
 <main><div class="crumbs"><a href="../../../index.html">Home</a> / <a href="../../index.html">Code</a></div>
-<h1><code>wiki/config.py</code></h1><p><a href="../../src/wiki/config.py">raw file</a></p><pre class="src">&quot;&quot;&quot;Default source paths (all read-only) and fixed render settings.&quot;&quot;&quot;
-DEFAULTS = {
-    &quot;atlas&quot;: &quot;/workspace/signage-atlas-work/signage-atlas&quot;,
-    &quot;matrix&quot;: &quot;/workspace/signage-atlas-art/kit/street_furniture/sign/matrix&quot;,
-    &quot;art_placeholders&quot;: &quot;/workspace/signage-atlas-art/placeholders&quot;,
-    &quot;kit020&quot;: &quot;/workspace/gridforge-art/020/gf.module.bus_stop_ref.gfkit&quot;,
-    &quot;kit020_dir&quot;: &quot;/workspace/gridforge-art/020&quot;,
-    &quot;look&quot;: &quot;/workspace/signage-atlas-art/kit/street_furniture/bus_stop/look&quot;,
+<h1><code>wiki/config.py</code></h1><p><a href="../../src/wiki/config.py">raw file</a></p><pre class="src">&quot;&quot;&quot;Source paths and fixed render settings.
+
+Source paths are resolved in this order (first wins):
+  1. command-line flags (--atlas, --matrix, ...)
+  2. environment variables (GFWIKI_ATLAS, GFWIKI_MATRIX, ...)
+  3. wiki/local_config.json (gitignored; copy wiki/local_config.json.example)
+  4. the relative placeholder defaults below (relative to the repo root)
+All sources are read-only. Missing sources stop the build with a clear message.
+&quot;&quot;&quot;
+import json, os
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LOCAL_CONFIG = os.path.join(REPO, &quot;wiki&quot;, &quot;local_config.json&quot;)
+
+# key -&gt; (placeholder default relative to the repo root, what it is)
+SOURCES = {
+    &quot;atlas&quot;: (&quot;sources/signage-atlas&quot;, &quot;Signage Atlas checkout&quot;),
+    &quot;matrix&quot;: (&quot;sources/signage-atlas-art/kit/street_furniture/sign/matrix&quot;, &quot;Art&#x27;s matrix glyph grids&quot;),
+    &quot;art_placeholders&quot;: (&quot;sources/signage-atlas-art/placeholders&quot;, &quot;Art&#x27;s batches 10-12&quot;),
+    &quot;kit020&quot;: (&quot;sources/gridforge-art/020/gf.module.bus_stop_ref.gfkit&quot;, &quot;Spec 020 bus stop kit (.gfkit)&quot;),
+    &quot;kit020_dir&quot;: (&quot;sources/gridforge-art/020&quot;, &quot;Spec 020 kit folder&quot;),
+    &quot;look&quot;: (&quot;sources/signage-atlas-art/kit/street_furniture/bus_stop/look&quot;, &quot;Art&#x27;s look pack&quot;),
 }
+DEFAULTS = {k: v[0] for k, v in SOURCES.items()}
+
+
+def env_name(key):
+    return &quot;GFWIKI_&quot; + key.upper()
+
+
+def resolve(overrides=None):
+    &quot;&quot;&quot;Absolute source paths after flags &gt; env &gt; local_config.json &gt; defaults.&quot;&quot;&quot;
+    local = {}
+    if os.path.exists(LOCAL_CONFIG):
+        with open(LOCAL_CONFIG, encoding=&quot;utf-8&quot;) as f:
+            local = json.load(f)
+    out = {}
+    for k, (default, _) in SOURCES.items():
+        v = (overrides or {}).get(k) or os.environ.get(env_name(k)) or local.get(k) or default
+        out[k] = os.path.abspath(os.path.join(REPO, os.path.expanduser(v)))
+    return out
+
+
+def require(paths):
+    missing = [(k, p) for k, p in sorted(paths.items()) if not os.path.exists(p)]
+    if missing:
+        lines = [&quot;error: source path(s) not found:&quot;]
+        for k, p in missing:
+            lines.append(&quot;  %-17s %s  (%s; set --%s, %s or wiki/local_config.json)&quot;
+                         % (k, p, SOURCES[k][1], k.replace(&quot;_&quot;, &quot;-&quot;), env_name(k)))
+        raise SystemExit(&quot;\n&quot;.join(lines))
+    return paths
+
+
 # 3D preview camera (degrees) and image size; fixed so output is deterministic.
 CAM_AZIMUTH = 35.0
 CAM_ELEVATION = 24.0

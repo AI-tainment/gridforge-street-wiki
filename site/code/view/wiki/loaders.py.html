@@ -59,7 +59,7 @@ def traced_sources(atlas):
 
 def decisions_ids(atlas):
     qa = os.path.join(atlas, &quot;qa&quot;)
-    names = sorted(f for f in os.listdir(qa) if f.startswith(&quot;DECISIONS-FOR-&quot;) and f.endswith(&quot;.md&quot;))
+    names = sorted(f for f in os.listdir(qa) if f.startswith(&quot;DECISIONS-&quot;) and f.endswith(&quot;.md&quot;))
     text = &quot;&quot;.join(_read(os.path.join(qa, f)) for f in names)
     return sorted(set(re.findall(r&quot;^## ([0-9A-Z][0-9A-Za-z.]*) \(&quot;, text, re.M)))
 

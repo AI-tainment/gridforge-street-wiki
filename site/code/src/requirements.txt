@@ -1,0 +1,5 @@
+# Python 3.11+ (built and tested with the box's Python 3.13). Stdlib plus these two,
+# already installed on the box (nothing pip-installed for this repo):
+numpy==2.5.4      # BSD-3-Clause, https://numpy.org  (3D preview geometry)
+Pillow==12.3.0    # MIT-CMU (HPND), https://python-pillow.org  (3D preview PNG)
+# Screenshots only (qa/screenshots.sh): Google Chrome headless, /usr/bin/google-chrome on the box.

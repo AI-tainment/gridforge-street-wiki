@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>wiki/render3d.py | GridForge Street Wiki</title><link rel="stylesheet" href="../../../assets/wiki.css"/></head>
+<body><header><a class="brand" href="../../../index.html">GridForge Street Wiki</a>
+<nav><a href="../../../cat/signs.html">Signs</a><a href="../../../cat/markings.html">Road markings</a><a href="../../../cat/furniture.html">Street furniture (2D)</a><a href="../../../cat/matrix.html">Matrix glyphs and pictograms</a><a href="../../../cat/artdraft.html">Art drafts (batches 10-12)</a><a href="../../../cat/furniture3d.html">3D street furniture</a><a href="../../../az.html">A-Z / search</a><a href="../../../licences.html">Licences</a><a href="../../index.html">Code</a></nav></header>
+<main><div class="crumbs"><a href="../../../index.html">Home</a> / <a href="../../index.html">Code</a></div>
+<h1><code>wiki/render3d.py</code></h1><p><a href="../../src/wiki/render3d.py">raw file</a></p><pre class="src">&quot;&quot;&quot;Headless flat-shaded preview of a glTF 2.0 binary (GLB).
+
+Software painter&#x27;s-algorithm rasteriser: numpy for geometry, Pillow for polygon
+fill. No GPU, no Blender, no randomness. Same input -&gt; same PNG bytes.
+&quot;&quot;&quot;
+from __future__ import annotations
+import io, json, math, struct
+import numpy as np
+from PIL import Image
+
+CT = {5120: np.int8, 5121: np.uint8, 5122: np.int16, 5123: np.uint16, 5125: np.uint32, 5126: np.float32}
+NC = {&quot;SCALAR&quot;: 1, &quot;VEC2&quot;: 2, &quot;VEC3&quot;: 3, &quot;VEC4&quot;: 4, &quot;MAT4&quot;: 16}
+
+def parse_glb(b: bytes):
+    magic, ver, length = struct.unpack(&quot;&lt;4sII&quot;, b[:12])
+    assert magic == b&quot;glTF&quot;, &quot;not a GLB&quot;
+    off, js, binc = 12, None, b&quot;&quot;
+    while off &lt; length:
+        clen, ctype = struct.unpack(&quot;&lt;II&quot;, b[off:off + 8])
+        chunk = b[off + 8: off + 8 + clen]
+        if ctype == 0x4E4F534A:
+            js = json.loads(chunk)
+        elif ctype == 0x004E4942:
+            binc = chunk
+        off += 8 + clen
+    return js, binc
+
+def _acc(js, binc, i):
+    a = js[&quot;accessors&quot;][i]
+    bv = js[&quot;bufferViews&quot;][a[&quot;bufferView&quot;]]
+    n = NC[a[&quot;type&quot;]]
+    dt = np.dtype(CT[a[&quot;componentType&quot;]])
+    start = bv.get(&quot;byteOffset&quot;, 0) + a.get(&quot;byteOffset&quot;, 0)
+    stride = bv.get(&quot;byteStride&quot;, 0)
+    if stride and stride != n * dt.itemsize:
+        raw = np.frombuffer(binc, np.uint8, count=stride * a[&quot;count&quot;], offset=start).reshape(a[&quot;count&quot;], stride)
+        arr = raw[:, : n * dt.itemsize].copy().view(dt)
+    else:
+        arr = np.frombuffer(binc, dt, count=a[&quot;count&quot;] * n, offset=start)
+    return arr.reshape(a[&quot;count&quot;], n) if n &gt; 1 else arr
+
+def _local(node):
+    if &quot;matrix&quot; in node:
+        return np.array(node[&quot;matrix&quot;], float).reshape(4, 4).T
+    t = np.array(node.get(&quot;translation&quot;, [0, 0, 0]), float)
+    x, y, z, w = node.get(&quot;rotation&quot;, [0, 0, 0, 1])
+    s = np.array(node.get(&quot;scale&quot;, [1, 1, 1]), float)
+    r = np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                  [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                  [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
+    m = np.eye(4)
+    m[:3, :3] = r * s
+    m[:3, 3] = t
+    return m
+
+def triangles(js, binc):
+    &quot;&quot;&quot;List of (tri[3,3] world coords, material name, alpha, base rgba).&quot;&quot;&quot;
+    out = []
+    mats = js.get(&quot;materials&quot;, [])
+    def walk(ni, parent):
+        node = js[&quot;nodes&quot;][ni]
+        m = parent @ _local(node)
+        if &quot;mesh&quot; in node:
+            for prim in js[&quot;meshes&quot;][node[&quot;mesh&quot;]][&quot;primitives&quot;]:
+                if prim.get(&quot;mode&quot;, 4) != 4:
+                    continue
+                pos = _acc(js, binc, prim[&quot;attributes&quot;][&quot;POSITION&quot;]).astype(float)
+                idx = _acc(js, binc, prim[&quot;indices&quot;]).astype(int) if &quot;indices&quot; in prim else np.arange(len(pos))
+                pw = (np.c_[pos, np.ones(len(pos))] @ m.T)[:, :3]
+                mat = mats[prim[&quot;material&quot;]] if &quot;material&quot; in prim else {}
+                rgba = mat.get(&quot;pbrMetallicRoughness&quot;, {}).get(&quot;baseColorFactor&quot;, [0.7, 0.7, 0.7, 1])
+                if mat.get(&quot;alphaMode&quot;, &quot;OPAQUE&quot;) != &quot;BLEND&quot;:
+                    rgba = list(rgba[:3]) + [1.0]
+                for t in idx.reshape(-1, 3):
+                    out.append((pw[t], mat.get(&quot;name&quot;, &quot;&quot;), list(rgba)))
+        for c in node.get(&quot;children&quot;, []):
+            walk(c, m)
+    scene = js[&quot;scenes&quot;][js.get(&quot;scene&quot;, 0)]
+    for n in scene[&quot;nodes&quot;]:
+        walk(n, np.eye(4))
+    return out
+
+def render(glb: bytes, palette=None, az=35.0, el=24.0, size=(480, 360), ss=2) -&gt; bytes:
+    &quot;&quot;&quot;PNG bytes. palette: {material name: rgba} overrides glTF base colours.&quot;&quot;&quot;
+    js, binc = parse_glb(glb)
+    tris = triangles(js, binc)
+    W, H = size[0] * ss, size[1] * ss
+    a, e = math.radians(az), math.radians(el)
+    # glTF +Y up. View direction (from camera to target).
+    fwd = np.array([math.sin(a) * math.cos(e), -math.sin(e), math.cos(a) * math.cos(e)])
+    right = np.cross(fwd, [0, 1, 0]); right /= np.linalg.norm(right)
+    up = np.cross(right, fwd)
+    light = np.array([0.4, 0.85, -0.35]); light /= np.linalg.norm(light)
+    allp = np.concatenate([t[0] for t in tris]) if tris else np.zeros((1, 3))
+    lo, hi = allp.min(0), allp.max(0)
+    # ground plate under the model
+    pad = 0.25 + 0.08 * float(max(hi - lo))
+    g = [np.array([[lo[0] - pad, 0, lo[2] - pad], [hi[0] + pad, 0, lo[2] - pad], [hi[0] + pad, 0, hi[2] + pad]]),
+         np.array([[lo[0] - pad, 0, lo[2] - pad], [hi[0] + pad, 0, hi[2] + pad], [lo[0] - pad, 0, hi[2] + pad]])]
+    ground = [(t, &quot;_ground&quot;, [0.80, 0.80, 0.78, 1.0]) for t in g]
+    allp = np.concatenate([allp] + g)
+    px, py = allp @ right, allp @ up
+    sc = 0.9 * min(W / max(np.ptp(px), 1e-6), H / max(np.ptp(py), 1e-6))
+    cx, cy = (px.max() + px.min()) / 2, (py.max() + py.min()) / 2
+    def proj(P):
+        return np.stack([W / 2 + (P @ right - cx) * sc, H / 2 - (P @ up - cy) * sc, P @ fwd], 1)
+    img = np.empty((H, W, 3), float); img[:] = (246 / 255, 246 / 255, 242 / 255)
+    zbuf = np.full((H, W), np.inf)
+    opaque, blend = [], []
+    for P, name, rgba in ground + tris:
+        if palette and name in palette:
+            rgba = list(palette[name][:3]) + [rgba[3]]
+        n = np.cross(P[1] - P[0], P[2] - P[0]); ln = np.linalg.norm(n)
+        if ln &lt; 1e-12:
+            continue
+        shade = 0.55 + 0.45 * abs(float((n / ln) @ light)) if name != &quot;_ground&quot; else 1.0
+        col = np.clip(np.array(rgba[:3], float) * shade, 0, 1)
+        q = proj(P)
+        (blend if rgba[3] &lt; 1.0 else opaque).append((float(q[:, 2].mean()), q, col, float(rgba[3])))
+    def raster(q, col, alpha):
+        x0, x1 = int(max(0, np.floor(q[:, 0].min()))), int(min(W - 1, np.ceil(q[:, 0].max())))
+        y0, y1 = int(max(0, np.floor(q[:, 1].min()))), int(min(H - 1, np.ceil(q[:, 1].max())))
+        if x1 &lt; x0 or y1 &lt; y0:
+            return
+        ys, xs = np.mgrid[y0:y1 + 1, x0:x1 + 1]
+        px_, py_ = xs + 0.5, ys + 0.5
+        (ax, ay, az_), (bx, by, bz), (qx, qy, qz) = q
+        den = (by - qy) * (ax - qx) + (qx - bx) * (ay - qy)
+        if abs(den) &lt; 1e-12:
+            return
+        w0 = ((by - qy) * (px_ - qx) + (qx - bx) * (py_ - qy)) / den
+        w1 = ((qy - ay) * (px_ - qx) + (ax - qx) * (py_ - qy)) / den
+        w2 = 1 - w0 - w1
+        inside = (w0 &gt;= -1e-9) &amp; (w1 &gt;= -1e-9) &amp; (w2 &gt;= -1e-9)
+        z = w0 * az_ + w1 * bz + w2 * qz - (1e-4 if alpha &lt; 1 else 0)
+        zb = zbuf[y0:y1 + 1, x0:x1 + 1]
+        m = inside &amp; (z &lt; zb)
+        sub = img[y0:y1 + 1, x0:x1 + 1]
+        if alpha &gt;= 1.0:
+            sub[m] = col; zb[m] = z[m]
+        else:
+            sub[m] = sub[m] * (1 - alpha) + col * alpha
+    for _, q, col, al in opaque:
+        raster(q, col, al)
+    for _, q, col, al in sorted(blend, key=lambda t: (-t[0], tuple(t[2]))):
+        raster(q, col, al)
+    im = Image.fromarray(np.round(img * 255).astype(np.uint8), &quot;RGB&quot;).resize(size, Image.LANCZOS)
+    buf = io.BytesIO()
+    im.save(buf, &quot;PNG&quot;, optimize=False)
+    return buf.getvalue()
+</pre>
+</main><footer><p class="attr">GridForge Street Wiki &copy; 2026 AI-tainment (<a href="https://github.com/AI-tainment">https://github.com/AI-tainment</a>), licensed under <a rel="license" href="https://creativecommons.org/licenses/by-nd/4.0/">CC BY-ND 4.0</a> (https://creativecommons.org/licenses/by-nd/4.0/). Full text: <a href="../../../LICENCE">LICENCE</a>. Third-party parts keep their own licences (<a href="../../../licences.html">Licences</a>).</p>Generated by <a href="../../index.html">wiki/build.py</a> from local sources. Contains public sector information licensed under the Open Government Licence v3.0. See <a href="../../../licences.html">Licences</a>.</footer>
+</body></html>

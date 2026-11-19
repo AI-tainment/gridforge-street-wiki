@@ -1,0 +1,21 @@
+(a) twice-regen: diff -r exit 0; manifest sha256 run1 d84a5ce47eb5411d56e69af82808e21e40a0d2caf0c8693091c34e058fde1519 run2 d84a5ce47eb5411d56e69af82808e21e40a0d2caf0c8693091c34e058fde1519; files 1391 -> IDENTICAL
+    committed site manifest sha256 d84a5ce47eb5411d56e69af82808e21e40a0d2caf0c8693091c34e058fde1519 -> IDENTICAL
+(b) link check: 14944 internal href/src checked, 0 broken
+    fonts: 0 font files / @font-face / web-font refs []
+    LICENCE: site/LICENCE present and identical to repo LICENCE (CC BY-ND 4.0 legal code): OK
+    footer: 697 HTML pages, 0 without the CC BY-ND 4.0 attribution footer []
+    no-name: 1415 files scanned (site/ + tracked), 0 matches []; allow-list empty
+(c) counts
+    item                                 source     wiki  match
+    artdraft                                 41       41  OK
+    artdraft drawn (Y)                       30       30  OK
+    artdraft unverified (U)                  11       11  OK
+    furniture                                14       14  OK
+    furniture3d                              23       23  OK
+    markings                                 25       25  OK
+    matrix                                  165      165  OK
+    signs                                   390      390  OK
+    signs drawn (glyph=true)                221      221  OK
+    signs placeholder (glyph=false)         169      169  OK
+    TOTAL item pages                        658      658  OK
+RESULT: PASS

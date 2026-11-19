@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>tests/check.py | GridForge Street Wiki</title><link rel="stylesheet" href="../../../assets/wiki.css"/></head>
+<body><header><a class="brand" href="../../../index.html">GridForge Street Wiki</a>
+<nav><a href="../../../cat/signs.html">Signs</a><a href="../../../cat/markings.html">Road markings</a><a href="../../../cat/furniture.html">Street furniture (2D)</a><a href="../../../cat/matrix.html">Matrix glyphs and pictograms</a><a href="../../../cat/artdraft.html">Art drafts (batches 10-12)</a><a href="../../../cat/furniture3d.html">3D street furniture</a><a href="../../../az.html">A-Z / search</a><a href="../../../licences.html">Licences</a><a href="../../index.html">Code</a></nav></header>
+<main><div class="crumbs"><a href="../../../index.html">Home</a> / <a href="../../index.html">Code</a></div>
+<h1><code>tests/check.py</code></h1><p><a href="../../src/tests/check.py">raw file</a></p><pre class="src">#!/usr/bin/env python3
+&quot;&quot;&quot;Acceptance checks for the wiki.
+
+    python3 tests/check.py [--site site]
+
+(a) builds the wiki twice into fresh temp folders; trees must be byte-identical
+    (diff -r and a sha256 manifest), and identical to the committed --site;
+(b) link check: every internal href/src in every HTML file resolves to a file;
+(c) item counts, taken from the sources independently of wiki/loaders.py,
+    must equal the generated item pages (printed as a table).
+Plus: no font files / @font-face / web-font hosts, no absolute or file: links.
+Exit code 0 only if every check passes.
+&quot;&quot;&quot;
+import hashlib, json, os, re, subprocess, sys, tempfile, zipfile
+from html.parser import HTMLParser
+from urllib.parse import urlsplit, unquote
+
+sys.dont_write_bytecode = True
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(REPO, &quot;wiki&quot;))
+import config  # paths only
+D = config.DEFAULTS
+
+
+def manifest(root):
+    out = []
+    for dp, dn, fn in os.walk(root):
+        dn.sort()
+        for f in sorted(fn):
+            p = os.path.join(dp, f)
+            out.append(&quot;%s  %s&quot; % (hashlib.sha256(open(p, &quot;rb&quot;).read()).hexdigest(), os.path.relpath(p, root)))
+    return &quot;\n&quot;.join(sorted(out, key=lambda l: l[66:])) + &quot;\n&quot;
+
+
+class Links(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.refs = []
+
+    def handle_starttag(self, tag, attrs):
+        for k, v in attrs:
+            if k in (&quot;href&quot;, &quot;src&quot;) and v is not None:
+                self.refs.append(v)
+
+
+def link_check(root):
+    bad, n = [], 0
+    for dp, dn, fn in os.walk(root):
+        for f in fn:
+            if not f.endswith((&quot;.html&quot;, &quot;.css&quot;)):
+                continue
+            p = os.path.join(dp, f)
+            txt = open(p, encoding=&quot;utf-8&quot;).read()
+            if f.endswith(&quot;.css&quot;):
+                refs = re.findall(r&quot;url\(([^)]+)\)&quot;, txt)
+            else:
+                lp = Links(); lp.feed(txt); refs = lp.refs
+            for r in refs:
+                u = urlsplit(r)
+                if u.scheme in (&quot;http&quot;, &quot;https&quot;, &quot;mailto&quot;):
+                    continue
+                n += 1
+                if u.scheme or r.startswith(&quot;/&quot;):
+                    bad.append((os.path.relpath(p, root), r, &quot;absolute/scheme link&quot;))
+                    continue
+                if not u.path:
+                    continue
+                tgt = os.path.normpath(os.path.join(dp, unquote(u.path)))
+                if not tgt.startswith(os.path.abspath(root)) or not os.path.isfile(tgt):
+                    bad.append((os.path.relpath(p, root), r, &quot;missing&quot;))
+    return n, bad
+
+
+def source_counts():
+    uk = os.path.join(D[&quot;atlas&quot;], &quot;countries/uk&quot;)
+    signs = json.load(open(os.path.join(uk, &quot;signs.json&quot;)))
+    c = {
+        &quot;signs&quot;: len(signs),
+        &quot;signs drawn (glyph=true)&quot;: sum(1 for r in signs if r.get(&quot;glyph&quot;)),
+        &quot;signs placeholder (glyph=false)&quot;: sum(1 for r in signs if not r.get(&quot;glyph&quot;)),
+        &quot;markings&quot;: len(json.load(open(os.path.join(uk, &quot;markings.json&quot;)))),
+        &quot;furniture&quot;: len(json.load(open(os.path.join(uk, &quot;furniture.json&quot;)))),
+        &quot;matrix&quot;: sum(1 for dp, dn, fn in os.walk(D[&quot;matrix&quot;]) for f in fn if f.endswith(&quot;.war&quot;)),
+    }
+    rows = [l for l in open(os.path.join(D[&quot;art_placeholders&quot;], &quot;MANIFEST.md&quot;), encoding=&quot;utf-8&quot;) if re.match(r&quot;\|\s*\d&quot;, l)]
+    c[&quot;artdraft&quot;] = len(rows)
+    c[&quot;artdraft drawn (Y)&quot;] = sum(1 for l in rows if l.rstrip().rstrip(&quot;|&quot;).strip().endswith(&quot;Y&quot;))
+    c[&quot;artdraft unverified (U)&quot;] = sum(1 for l in rows if l.rstrip().rstrip(&quot;|&quot;).strip().endswith(&quot;U&quot;))
+    slots = json.loads(zipfile.ZipFile(D[&quot;kit020&quot;]).read(&quot;kit.manifest.json&quot;))[&quot;slots&quot;]
+    c[&quot;furniture3d&quot;] = len(slots) + 1  # + Art look pack page
+    return c
+
+
+def site_counts(site):
+    c = {}
+    stat = {}
+    for cat in sorted(os.listdir(os.path.join(site, &quot;items&quot;))):
+        files = [f for f in os.listdir(os.path.join(site, &quot;items&quot;, cat)) if f.endswith(&quot;.html&quot;)]
+        c[cat] = len(files)
+        for f in files:
+            t = open(os.path.join(site, &quot;items&quot;, cat, f), encoding=&quot;utf-8&quot;).read()
+            m = re.search(r&#x27;&lt;span class=&quot;badge [a-z]+&quot;&gt;([^&lt;]+)&lt;/span&gt;&#x27;, t)
+            stat.setdefault(cat, {}).setdefault(m.group(1), []).append(f[:-5])
+    s = stat.get(&quot;signs&quot;, {})
+    ph = len(s.get(&quot;Placeholder&quot;, [])) + len(s.get(&quot;Unverified source&quot;, []))
+    c[&quot;signs drawn (glyph=true)&quot;] = c[&quot;signs&quot;] - ph
+    c[&quot;signs placeholder (glyph=false)&quot;] = ph
+    a = stat.get(&quot;artdraft&quot;, {})
+    c[&quot;artdraft drawn (Y)&quot;] = len(a.get(&quot;Art draft, not yet imported&quot;, []))
+    c[&quot;artdraft unverified (U)&quot;] = len(a.get(&quot;Unverified source&quot;, []))
+    return c, stat
+
+
+def main():
+    site = os.path.join(REPO, sys.argv[sys.argv.index(&quot;--site&quot;) + 1]) if &quot;--site&quot; in sys.argv else os.path.join(REPO, &quot;site&quot;)
+    ok = True
+    report = []
+    def say(x=&quot;&quot;):
+        print(x); report.append(x)
+    # (a)
+    with tempfile.TemporaryDirectory() as td:
+        outs = []
+        for k in (&quot;a&quot;, &quot;b&quot;):
+            o = os.path.join(td, k)
+            subprocess.run([sys.executable, os.path.join(REPO, &quot;wiki/build.py&quot;), &quot;--out&quot;, o], check=True, stdout=subprocess.DEVNULL)
+            outs.append(o)
+        d = subprocess.run([&quot;diff&quot;, &quot;-r&quot;, outs[0], outs[1]], capture_output=True, text=True)
+        ma, mb = manifest(outs[0]), manifest(outs[1])
+        ha, hb = hashlib.sha256(ma.encode()).hexdigest(), hashlib.sha256(mb.encode()).hexdigest()
+        same = d.returncode == 0 and ma == mb
+        say(&quot;(a) twice-regen: diff -r exit %d; manifest sha256 run1 %s run2 %s; files %d -&gt; %s&quot;
+            % (d.returncode, ha, hb, ma.count(&quot;\n&quot;), &quot;IDENTICAL&quot; if same else &quot;DIFFERENT&quot;))
+        ok &amp;= same
+        if os.path.isdir(site):
+            mc = manifest(site)
+            hc = hashlib.sha256(mc.encode()).hexdigest()
+            say(&quot;    committed %s manifest sha256 %s -&gt; %s&quot; % (os.path.relpath(site, REPO), hc, &quot;IDENTICAL&quot; if mc == ma else &quot;DIFFERENT&quot;))
+            ok &amp;= mc == ma
+            os.makedirs(os.path.join(REPO, &quot;qa&quot;), exist_ok=True)
+            open(os.path.join(REPO, &quot;qa/site.sha256&quot;), &quot;w&quot;).write(ma)
+    # (b)
+    n, bad = link_check(site)
+    say(&quot;(b) link check: %d internal href/src checked, %d broken&quot; % (n, len(bad)))
+    for b in bad[:20]:
+        say(&quot;    BROKEN %s -&gt; %s (%s)&quot; % b)
+    ok &amp;= not bad
+    # fonts / privacy
+    fontbad = []
+    for dp, dn, fn in os.walk(site):
+        for f in fn:
+            if f.lower().endswith((&quot;.ttf&quot;, &quot;.otf&quot;, &quot;.woff&quot;, &quot;.woff2&quot;, &quot;.eot&quot;)):
+                fontbad.append(os.path.relpath(os.path.join(dp, f), site))
+            elif f.endswith((&quot;.html&quot;, &quot;.css&quot;, &quot;.svg&quot;)) and not os.path.relpath(dp, site).startswith(&quot;code&quot;):
+                # code/ pages show this checker&#x27;s own source text, so only font files are checked there
+                t = open(os.path.join(dp, f), encoding=&quot;utf-8&quot;, errors=&quot;replace&quot;).read()
+                if &quot;@font-face&quot; in t or &quot;fonts.googleapis&quot; in t or &quot;fonts.gstatic&quot; in t:
+                    fontbad.append(os.path.relpath(os.path.join(dp, f), site))
+    say(&quot;    fonts: %d font files / @font-face / web-font refs %s&quot; % (len(fontbad), fontbad[:5]))
+    ok &amp;= not fontbad
+    # licence
+    lic_ok = os.path.isfile(os.path.join(site, &quot;LICENCE&quot;)) and \
+        open(os.path.join(site, &quot;LICENCE&quot;), &quot;rb&quot;).read() == open(os.path.join(REPO, &quot;LICENCE&quot;), &quot;rb&quot;).read() and \
+        b&quot;Attribution-NoDerivatives 4.0 International&quot; in open(os.path.join(REPO, &quot;LICENCE&quot;), &quot;rb&quot;).read()
+    say(&quot;    LICENCE: site/LICENCE present and identical to repo LICENCE (CC BY-ND 4.0 legal code): %s&quot; % (&quot;OK&quot; if lic_ok else &quot;FAIL&quot;))
+    ok &amp;= lic_ok
+    pages, missing = 0, []
+    for dp, dn, fn in os.walk(site):
+        for f in fn:
+            if f.endswith(&quot;.html&quot;):
+                pages += 1
+                t = open(os.path.join(dp, f), encoding=&quot;utf-8&quot;).read()
+                foot = t[t.rfind(&quot;&lt;footer&gt;&quot;):] if &quot;&lt;footer&gt;&quot; in t else &quot;&quot;
+                if not (&quot;2026 AI-tainment&quot; in foot and &quot;https://creativecommons.org/licenses/by-nd/4.0/&quot; in foot and &quot;CC BY-ND 4.0&quot; in foot):
+                    missing.append(os.path.relpath(os.path.join(dp, f), site))
+    say(&quot;    footer: %d HTML pages, %d without the CC BY-ND 4.0 attribution footer %s&quot; % (pages, len(missing), missing[:5]))
+    ok &amp;= not missing and pages &gt; 0
+    # no personal name (case-insensitive), in site/ and every tracked file
+    pat = re.compile(&quot;p&quot; + &quot;hil|rob&quot; + &quot;inson&quot;, re.I)
+    allow = {}  # word -&gt; justification; none needed so far
+    hits = []
+    tracked = subprocess.run([&quot;git&quot;, &quot;ls-files&quot;], cwd=REPO, capture_output=True, text=True).stdout.split(&quot;\n&quot;)
+    paths = [os.path.join(REPO, f) for f in tracked if f and not f.startswith(&quot;site/&quot;)]
+    for dp, dn, fn in os.walk(site):
+        paths += [os.path.join(dp, f) for f in fn]
+    for p in sorted(set(paths)):
+        if not os.path.isfile(p):
+            continue
+        rel = os.path.relpath(p, REPO)
+        if pat.search(rel):
+            hits.append((pat.sub(&quot;***&quot;, rel), &quot;path&quot;))
+        t = open(p, &quot;rb&quot;).read().decode(&quot;utf-8&quot;, &quot;replace&quot;)
+        for m in pat.finditer(t):
+            w = re.search(r&quot;\w*$&quot;, t[:m.start()]).group(0) + m.group(0) + re.match(r&quot;\w*&quot;, t[m.end():]).group(0)
+            if w.lower() not in allow:
+                hits.append((rel, w[:1] + &quot;*&quot; * (len(w) - 1)))  # masked so the report never repeats it
+    say(&quot;    no-name: %d files scanned (site/ + tracked), %d matches %s; allow-list %s&quot; % (len(set(paths)), len(hits), hits[:5], sorted(allow) or &quot;empty&quot;))
+    ok &amp;= not hits
+    # (c)
+    src = source_counts()
+    gen, _ = site_counts(site)
+    say(&quot;(c) counts&quot;)
+    say(&quot;    %-34s %8s %8s  %s&quot; % (&quot;item&quot;, &quot;source&quot;, &quot;wiki&quot;, &quot;match&quot;))
+    for k in sorted(src):
+        m = src[k] == gen.get(k)
+        ok &amp;= m
+        say(&quot;    %-34s %8d %8s  %s&quot; % (k, src[k], gen.get(k), &quot;OK&quot; if m else &quot;MISMATCH&quot;))
+    tot_s = sum(src[k] for k in (&quot;signs&quot;, &quot;markings&quot;, &quot;furniture&quot;, &quot;matrix&quot;, &quot;artdraft&quot;, &quot;furniture3d&quot;))
+    tot_g = sum(gen.get(k, 0) for k in (&quot;signs&quot;, &quot;markings&quot;, &quot;furniture&quot;, &quot;matrix&quot;, &quot;artdraft&quot;, &quot;furniture3d&quot;))
+    say(&quot;    %-34s %8d %8d  %s&quot; % (&quot;TOTAL item pages&quot;, tot_s, tot_g, &quot;OK&quot; if tot_s == tot_g else &quot;MISMATCH&quot;))
+    ok &amp;= tot_s == tot_g
+    say(&quot;RESULT: %s&quot; % (&quot;PASS&quot; if ok else &quot;FAIL&quot;))
+    open(os.path.join(REPO, &quot;qa/check-report.txt&quot;), &quot;w&quot;).write(&quot;\n&quot;.join(report) + &quot;\n&quot;)
+    return 0 if ok else 1
+
+
+if __name__ == &quot;__main__&quot;:
+    sys.exit(main())
+</pre>
+</main><footer><p class="attr">GridForge Street Wiki &copy; 2026 AI-tainment (<a href="https://github.com/AI-tainment">https://github.com/AI-tainment</a>), licensed under <a rel="license" href="https://creativecommons.org/licenses/by-nd/4.0/">CC BY-ND 4.0</a> (https://creativecommons.org/licenses/by-nd/4.0/). Full text: <a href="../../../LICENCE">LICENCE</a>. Third-party parts keep their own licences (<a href="../../../licences.html">Licences</a>).</p>Generated by <a href="../../index.html">wiki/build.py</a> from local sources. Contains public sector information licensed under the Open Government Licence v3.0. See <a href="../../../licences.html">Licences</a>.</footer>
+</body></html>

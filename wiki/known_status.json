@@ -1,0 +1,9 @@
+{
+  "_note": "Reviewer grades that the atlas data does not carry yet. Each entry cites the review file. Edit by hand; the build reads it as a source. Drawn faces not listed here show as 'drawn' (graded OK or not yet graded).",
+  "adjust": {
+    "660.5": "Reviewer b2 (/workspace/gridforge-reviews/signage-atlas-placeholders-b2.md): voucher pictogram renders as a solid square; re-trace. Still open after fix-b2b3 (bdaba1d).",
+    "661.4": "Reviewer b4 partial (/workspace/gridforge-reviews/signage-atlas-placeholders-b4.md): the '?' is dropped, which changes the meaning; build a '?' glyph from primitives in tools/gen.",
+    "638": "Reviewer b4 partial (/workspace/gridforge-reviews/signage-atlas-placeholders-b4.md): 'any time' spacing (minor, open).",
+    "622.4": "Owner ruled 19 Nov 07:13 GMT 'Both please': the second SI 2016 alternative 'No articulated vehicles' face is not drawn yet; only 'No track laying vehicles' exists."
+  }
+}

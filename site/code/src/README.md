@@ -91,3 +91,12 @@ content only. It does not relicense third-party parts, which keep their own term
 - OpenStreetMap tag data: ODbL (only tag values are shown, no OSM geodata; attribution as the atlas records it).
 - Spec 020 kit: CC0-1.0. Art look pack: original procedural, intended CC0 after sign-off.
 - The Traffic Signs Manual is not OGL (cited only).
+
+## EPS faces (two build modes)
+
+- **No EPS cache** (a clean checkout, or `GFWIKI_EPS=off`): sign pages show the atlas's procedural face, then
+  the placeholder; no EPS links and no Crown notice. The committed `site/` is built in this mode, so a clean
+  clone reproduces it and `tests/check.py` passes.
+- **EPS cache present** (the atlas has run `tools/eps/build.py`, so `site/faces-eps/` exists): the build shows
+  the EPS face first, with the Crown copyright / OGL v3.0 attribution, writing `media/signs/*--eps.svg`
+  (gitignored). Build and check in that mode before a publish; don't commit that `site/`.

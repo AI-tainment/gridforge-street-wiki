@@ -137,7 +137,9 @@ def load_atlas(atlas, known):
                     fields.append(("Face source", label))
                     if fsrc["source"] == "eps":
                         ep = os.path.join(atlas, "site/faces-eps/uk/signs", i.replace("/", "_") + ".svg")
-                        if os.path.exists(ep):
+                        # No EPS cache (clean checkout) or GFWIKI_EPS=off: no EPS link and no Crown notice for
+                        # this face; the procedural face (then the placeholder) is shown instead.
+                        if os.environ.get("GFWIKI_EPS", "auto") != "off" and os.path.exists(ep):
                             eps_preview = ep
                             notes.append("Face: GOV.UK traffic sign image, \u00a9 Crown copyright (Department for Transport), "
                                          "used under the Open Government Licence v3.0 "

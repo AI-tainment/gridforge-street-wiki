@@ -69,11 +69,11 @@ They are Crown copyright and are used under the Open Government Licence v3.0:
 &gt; Traffic sign images © Crown copyright, Department for Transport. Contains public sector
 &gt; information licensed under the Open Government Licence v3.0.
 
-That artwork is **not in this repository** and is not covered by the CC BY-ND 4.0 licence: the
-tools in `tools/eps/` fetch the zips from GOV.UK (SHA-256 checked against
-`countries/uk/sources/eps/manifest.csv`) and convert them on the user&#x27;s own machine into gitignored
-folders. Only the pipeline, the manifest, the 2002/2016 crosswalk and our mapping and review data are
-committed. The EPS lettering is outlined artwork, not a font; no Transport font file is used or shipped.
+That artwork is **not covered by the CC BY-ND 4.0 licence**. The tools in `tools/eps/` fetch the zips from
+GOV.UK (SHA-256 checked against `countries/uk/sources/eps/manifest.csv`) and convert them locally. Under
+the owner&#x27;s ruling (2026-11-23) the converted faces in use are committed in `site/faces-eps/uk/signs/`,
+each carrying &quot;Crown copyright ... Open Government Licence v3.0&quot; in its `&lt;desc&gt;`, with a `README.txt`
+notice; they remain Crown copyright under OGL v3.0. The raw EPS files and zips are not committed. The EPS lettering is outlined artwork, not a font; no Transport font file is used or shipped.
 GOV.UK asks that the images are reproduced accurately and not in a misleading context.
 
 ### OpenStreetMap: ODbL

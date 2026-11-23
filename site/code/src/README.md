@@ -94,9 +94,8 @@ content only. It does not relicense third-party parts, which keep their own term
 
 ## EPS faces (two build modes)
 
-- **No EPS cache** (a clean checkout, or `GFWIKI_EPS=off`): sign pages show the atlas's procedural face, then
-  the placeholder; no EPS links and no Crown notice. The committed `site/` is built in this mode, so a clean
-  clone reproduces it and `tests/check.py` passes.
-- **EPS cache present** (the atlas has run `tools/eps/build.py`, so `site/faces-eps/` exists): the build shows
-  the EPS face first, with the Crown copyright / OGL v3.0 attribution, writing `media/signs/*--eps.svg`
-  (gitignored). Build and check in that mode before a publish; don't commit that `site/`.
+- **EPS mode** (the atlas has `site/faces-eps/`, which it now commits): sign pages show the official GOV.UK
+  face first, with the Crown copyright / OGL v3.0 attribution (`media/signs/*--eps.svg`), then the atlas's
+  procedural face as the fallback. The committed `site/` is built in this mode, with the SVGs it needs.
+- **No EPS** (`GFWIKI_EPS=off`, or an atlas without `site/faces-eps/`): no EPS links and no Crown notice;
+  the procedural face, then the placeholder. `tests/check.py` passes in both modes.

@@ -68,6 +68,9 @@ ABS_PATH = re.compile(r"(?<![\w.~-])/(?:" + "work" + "space|" + "tm" + "p|" + "h
 SOURCE_ROOTS = []  # [(absolute root, placeholder)], longest first; set in main()
 
 
+EPS_CAPTION = ("Face (SVG): GOV.UK traffic sign image, \u00a9 Crown copyright (Department for Transport), "
+               "Open Government Licence v3.0; converted from the EPS")
+
 def redact(text):
     for root, ph in SOURCE_ROOTS:
         text = text.replace(root, ph)
@@ -176,9 +179,13 @@ def main(argv=None):
         base = "media/%s/%s" % (it["cat"], it["slug"])
         it["media"] = []
         k = it["preview_kind"]
+        if it.get("eps_preview"):
+            # r12: EPS face first, with its attribution (the SVG embeds the same notice in <desc>)
+            s.write(base + "--eps.svg", open(it["eps_preview"], "rb").read())
+            it["media"].append((base + "--eps.svg", EPS_CAPTION))
         if k == "svg" and it["preview"]:
             s.write(base + ".svg", open(it["preview"], "rb").read())
-            it["media"].append((base + ".svg", "Face (SVG)"))
+            it["media"].append((base + ".svg", "Procedural face (SVG), the offline fallback" if it.get("eps_preview") else "Face (SVG)"))
         elif k == "war":
             s.write(base + ".svg", matrix_svg.war_to_svg(it["war"][1]))
             it["media"].append((base + ".svg", "Matrix grid (lit pixels)"))
@@ -208,7 +215,7 @@ def main(argv=None):
         media = "".join('<figure><img src="%s" alt="%s"/><figcaption>%s</figcaption></figure>'
                         % (L(p), E_(it["id"]), E_(c)) for p, c in it["media"]) or \
             '<div class="noface">No face: %s</div>' % E_(STATUS[it["status"]][0])
-        if it["status"] in ("placeholder", "unverified") and it["media"]:
+        if it["status"] in ("placeholder", "unverified") and it["media"] and not it.get("eps_preview"):
             media = '<div class="phwarn">PLACEHOLDER: the image is the neutral placeholder, not the sign.</div>' + media
         rows = [("Id", it["id"]), ("Name", it["name"]), ("Category", CAT_TITLE[it["cat"]]), ("Group", it["sub"])]
         rows += it["fields"]
@@ -238,7 +245,10 @@ def main(argv=None):
             th = '<img loading="lazy" src="%s" alt=""/>' % s.link(frm, img) if img else '<div class="noimg">no face</div>'
             cells.append('<a class="card st-%s" href="%s">%s<span class="cid">%s</span><span class="cn">%s</span>%s</a>'
                          % (it["status"], s.link(frm, it["url"]), th, E_(it["id"]), E_(it["name"]), badge(it["status"])))
-        return '<div class="cards">%s</div>' % "".join(cells)
+        note = ('<p class="attrib">Faces marked from GOV.UK: traffic sign images \u00a9 Crown copyright (Department for '
+                'Transport), Open Government Licence v3.0; converted from the EPS.</p>'
+                if any(it.get("eps_preview") for it in its) else "")
+        return '<div class="cards">%s</div>%s' % ("".join(cells), note)
 
     def status_counts(its):
         c = {}

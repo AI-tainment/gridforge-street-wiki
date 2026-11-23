@@ -157,6 +157,23 @@ def main():
                     fontbad.append(os.path.relpath(os.path.join(dp, f), site))
     say("    fonts: %d font files / @font-face / web-font refs %s" % (len(fontbad), fontbad[:5]))
     ok &= not fontbad
+    # r12: every published EPS face carries Crown copyright + OGL v3.0, in the SVG and on its page
+    eps_bad, eps_n = [], 0
+    for dp, dn, fn in os.walk(site):
+        for f in fn:
+            fp = os.path.join(dp, f)
+            if f.endswith(".svg"):
+                b = open(fp, "rb").read()
+                if b'data-source="eps"' in b:
+                    eps_n += 1
+                    if b"<desc>Crown copyright" not in b or b"Open Government Licence v3.0" not in b:
+                        eps_bad.append(os.path.relpath(fp, site))
+            elif f.endswith(".html") and not os.path.relpath(dp, site).startswith("code"):
+                t = open(fp, encoding="utf-8").read()
+                if "--eps.svg" in t and not ("Crown copyright" in t and "Open Government Licence v3.0" in t):
+                    eps_bad.append(os.path.relpath(fp, site))
+    say("    EPS attribution: %d EPS face(s) published, %d without Crown copyright + OGL v3.0 %s" % (eps_n, len(eps_bad), eps_bad[:5]))
+    ok &= not eps_bad
     # licence
     lic_ok = os.path.isfile(os.path.join(site, "LICENCE")) and \
         open(os.path.join(site, "LICENCE"), "rb").read() == open(os.path.join(REPO, "LICENCE"), "rb").read() and \

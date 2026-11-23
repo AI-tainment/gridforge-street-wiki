@@ -1,5 +1,5 @@
-(a) twice-regen: diff -r exit 0; manifest sha256 run1 b7e9bf01dc3e3195ce0878575cce08a1a43faa279dacf06cd678c214c416f8dd run2 b7e9bf01dc3e3195ce0878575cce08a1a43faa279dacf06cd678c214c416f8dd; files 1393 -> IDENTICAL
-    committed site manifest sha256 b7e9bf01dc3e3195ce0878575cce08a1a43faa279dacf06cd678c214c416f8dd -> IDENTICAL
+(a) twice-regen: diff -r exit 0; manifest sha256 run1 0cfbc918118ee7e04192a97b3a1487fb1d9d16456513dcfe825a28b5dae7d157 run2 0cfbc918118ee7e04192a97b3a1487fb1d9d16456513dcfe825a28b5dae7d157; files 1393 -> IDENTICAL
+    committed site manifest sha256 0cfbc918118ee7e04192a97b3a1487fb1d9d16456513dcfe825a28b5dae7d157 -> IDENTICAL
 (b) link check: 14963 internal href/src checked, 0 broken
     fonts: 0 font files / @font-face / web-font refs []
     LICENCE: site/LICENCE present and identical to repo LICENCE (CC BY-ND 4.0 legal code): OK

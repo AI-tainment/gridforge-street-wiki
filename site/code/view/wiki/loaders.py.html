@@ -114,6 +114,7 @@ def load_atlas(atlas, known):
             preview = os.path.join(faces, m[&quot;path&quot;]) if m else None
             notes = []
             eps_preview = None
+            eps_example = False
             if kind == &quot;signs&quot;:
                 drawn = bool(row.get(&quot;glyph&quot;))
                 if i in dec:
@@ -140,6 +141,9 @@ def load_atlas(atlas, known):
                     label = {&quot;eps&quot;: &quot;GOV.UK EPS (Crown copyright, OGL v3.0), converted locally by the atlas&quot;,
                              &quot;procedural&quot;: &quot;procedural (atlas tools/atlas)&quot;,
                              &quot;placeholder&quot;: &quot;placeholder&quot;}.get(fsrc[&quot;source&quot;], fsrc[&quot;source&quot;])
+                    if fsrc.get(&quot;example&quot;):
+                        label = (&quot;GOV.UK EPS example layout (Crown copyright, OGL v3.0) &quot;
+                                 &quot;- to be generated per site&quot;)
                     fields.append((&quot;Face source&quot;, label))
                     if fsrc[&quot;source&quot;] == &quot;eps&quot;:
                         ep = os.path.join(atlas, &quot;site/faces-eps/uk/signs&quot;, i.replace(&quot;/&quot;, &quot;_&quot;) + &quot;.svg&quot;)
@@ -147,15 +151,30 @@ def load_atlas(atlas, known):
                         # this face; the procedural face (then the placeholder) is shown instead.
                         if os.environ.get(&quot;GFWIKI_EPS&quot;, &quot;auto&quot;) != &quot;off&quot; and os.path.exists(ep):
                             eps_preview = ep
-                            notes.append(&quot;Face: GOV.UK traffic sign image, \u00a9 Crown copyright (Department for Transport), &quot;
-                                         &quot;used under the Open Government Licence v3.0 &quot;
-                                         &quot;(https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/); &quot;
-                                         &quot;converted from the EPS by the atlas. The atlas&#x27;s own procedural face is shown &quot;
-                                         &quot;after it as the offline fallback.&quot;)
+                            if fsrc.get(&quot;example&quot;):
+                                eps_example = True
+                                note = &quot;Example layout (official GOV.UK image) - to be generated per site.&quot;
+                                notes.append(&quot;Example layout (official GOV.UK image) - to be generated per site.&quot;)
+                                notes.append(&quot;Face: GOV.UK traffic sign image, \u00a9 Crown copyright (Department for Transport), &quot;
+                                             &quot;used under the Open Government Licence v3.0 &quot;
+                                             &quot;(https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/); &quot;
+                                             &quot;converted from the EPS by the atlas. This is an example layout; a generated &quot;
+                                             &quot;face will replace it per site. The atlas&#x27;s own placeholder is shown after it &quot;
+                                             &quot;as the offline fallback.&quot;)
+                            else:
+                                notes.append(&quot;Face: GOV.UK traffic sign image, \u00a9 Crown copyright (Department for Transport), &quot;
+                                             &quot;used under the Open Government Licence v3.0 &quot;
+                                             &quot;(https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/); &quot;
+                                             &quot;converted from the EPS by the atlas. The atlas&#x27;s own procedural face is shown &quot;
+                                             &quot;after it as the offline fallback.&quot;)
                         else:
                             notes.append(&quot;The atlas takes this face from the GOV.UK EPS artwork, which is not built on &quot;
                                          &quot;this machine; the preview is the atlas&#x27;s own procedural face (the offline fallback)&quot;
                                          + (&quot;, superseded by the EPS.&quot; if fsrc.get(&quot;superseded&quot;) else &quot;.&quot;))
+                            if fsrc.get(&quot;example&quot;):
+                                eps_example = True
+                                note = &quot;Example layout (official GOV.UK image) - to be generated per site.&quot;
+                                notes.append(&quot;Example layout (official GOV.UK image) - to be generated per site.&quot;)
                     elif fsrc.get(&quot;why_not_eps&quot;) and fsrc.get(&quot;eps&quot;):
                         notes.append(&quot;Not EPS-sourced: &quot; + &quot;; &quot;.join(fsrc[&quot;why_not_eps&quot;]) + &quot;.&quot;)
                 lic = OGL
@@ -185,6 +204,7 @@ def load_atlas(atlas, known):
             items.append(dict(cat=kind, sub=sub, id=i, slug=slugify(i), name=row.get(&quot;name&quot;) or i,
                               what=row.get(&quot;what&quot;), status=status, status_note=note,
                               preview=preview, preview_kind=&quot;svg&quot; if preview else None, eps_preview=eps_preview,
+                              eps_example=eps_example,
                               fields=[(k, v) for k, v in fields if v not in (None, &quot;&quot;, [])],
                               source_ref=src, licence=lic, notes=notes))
     return items

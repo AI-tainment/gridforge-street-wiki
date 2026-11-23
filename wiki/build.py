@@ -70,6 +70,9 @@ SOURCE_ROOTS = []  # [(absolute root, placeholder)], longest first; set in main(
 
 EPS_CAPTION = ("Face (SVG): GOV.UK traffic sign image, \u00a9 Crown copyright (Department for Transport), "
                "Open Government Licence v3.0; converted from the EPS")
+EPS_EXAMPLE_CAPTION = ("Example layout (official GOV.UK image) - to be generated per site. "
+                       "GOV.UK traffic sign image, \u00a9 Crown copyright (Department for Transport), "
+                       "Open Government Licence v3.0; converted from the EPS")
 
 def redact(text):
     for root, ph in SOURCE_ROOTS:
@@ -182,7 +185,8 @@ def main(argv=None):
         if it.get("eps_preview"):
             # r12: EPS face first, with its attribution (the SVG embeds the same notice in <desc>)
             s.write(base + "--eps.svg", open(it["eps_preview"], "rb").read())
-            it["media"].append((base + "--eps.svg", EPS_CAPTION))
+            it["media"].append((base + "--eps.svg",
+                               EPS_EXAMPLE_CAPTION if it.get("eps_example") else EPS_CAPTION))
         if k == "svg" and it["preview"]:
             s.write(base + ".svg", open(it["preview"], "rb").read())
             it["media"].append((base + ".svg", "Procedural face (SVG), the offline fallback" if it.get("eps_preview") else "Face (SVG)"))

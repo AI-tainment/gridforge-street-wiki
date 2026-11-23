@@ -98,8 +98,10 @@ def load_atlas(atlas, known):
     si16 = _json(os.path.join(uk, &quot;sources/si2016_diagrams.json&quot;))[&quot;diagrams&quot;]
     dec = set(decisions_ids(atlas))
     unv = unverified_ids(atlas)
-    # EPS-first (atlas countries/uk/face_sources.json). The wiki never copies EPS artwork: the preview is
-    # always the atlas&#x27;s own procedural face, which is the offline fallback for an EPS-sourced face.
+    # EPS-first (atlas countries/uk/face_sources.json). r12: the owner ruled EPS-derived faces may be
+    # republished with attribution (Crown copyright, OGL v3.0). When the atlas has built its local EPS cache
+    # (site/faces-eps/, gitignored there), the page shows the EPS face first, then the atlas&#x27;s procedural face
+    # (the offline fallback), then the placeholder. Each EPS SVG embeds the notice; tests/check.py checks it.
     fs_path = os.path.join(uk, &quot;face_sources.json&quot;)
     face_src = _json(fs_path)[&quot;faces&quot;] if os.path.exists(fs_path) else {}
     adjust = known.get(&quot;adjust&quot;, {})
@@ -111,6 +113,7 @@ def load_atlas(atlas, known):
             m = manifest.get(&quot;%s/%s&quot; % (kind, i))
             preview = os.path.join(faces, m[&quot;path&quot;]) if m else None
             notes = []
+            eps_preview = None
             if kind == &quot;signs&quot;:
                 drawn = bool(row.get(&quot;glyph&quot;))
                 if i in dec:
@@ -139,9 +142,18 @@ def load_atlas(atlas, known):
                              &quot;placeholder&quot;: &quot;placeholder&quot;}.get(fsrc[&quot;source&quot;], fsrc[&quot;source&quot;])
                     fields.append((&quot;Face source&quot;, label))
                     if fsrc[&quot;source&quot;] == &quot;eps&quot;:
-                        notes.append(&quot;The atlas now takes this face from the GOV.UK EPS artwork. This wiki does not &quot;
-                                     &quot;redistribute that artwork; the preview is the atlas&#x27;s own procedural face &quot;
-                                     &quot;(the offline fallback)&quot; + (&quot;, superseded by the EPS.&quot; if fsrc.get(&quot;superseded&quot;) else &quot;.&quot;))
+                        ep = os.path.join(atlas, &quot;site/faces-eps/uk/signs&quot;, i.replace(&quot;/&quot;, &quot;_&quot;) + &quot;.svg&quot;)
+                        if os.path.exists(ep):
+                            eps_preview = ep
+                            notes.append(&quot;Face: GOV.UK traffic sign image, \u00a9 Crown copyright (Department for Transport), &quot;
+                                         &quot;used under the Open Government Licence v3.0 &quot;
+                                         &quot;(https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/); &quot;
+                                         &quot;converted from the EPS by the atlas. The atlas&#x27;s own procedural face is shown &quot;
+                                         &quot;after it as the offline fallback.&quot;)
+                        else:
+                            notes.append(&quot;The atlas takes this face from the GOV.UK EPS artwork, which is not built on &quot;
+                                         &quot;this machine; the preview is the atlas&#x27;s own procedural face (the offline fallback)&quot;
+                                         + (&quot;, superseded by the EPS.&quot; if fsrc.get(&quot;superseded&quot;) else &quot;.&quot;))
                     elif fsrc.get(&quot;why_not_eps&quot;) and fsrc.get(&quot;eps&quot;):
                         notes.append(&quot;Not EPS-sourced: &quot; + &quot;; &quot;.join(fsrc[&quot;why_not_eps&quot;]) + &quot;.&quot;)
                 lic = OGL
@@ -170,7 +182,7 @@ def load_atlas(atlas, known):
                 lic = &quot;Project data; figures cite their sources (see Licences)&quot;
             items.append(dict(cat=kind, sub=sub, id=i, slug=slugify(i), name=row.get(&quot;name&quot;) or i,
                               what=row.get(&quot;what&quot;), status=status, status_note=note,
-                              preview=preview, preview_kind=&quot;svg&quot; if preview else None,
+                              preview=preview, preview_kind=&quot;svg&quot; if preview else None, eps_preview=eps_preview,
                               fields=[(k, v) for k, v in fields if v not in (None, &quot;&quot;, [])],
                               source_ref=src, licence=lic, notes=notes))
     return items

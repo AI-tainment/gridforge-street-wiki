@@ -74,6 +74,9 @@ ABS_PATH = re.compile(r&quot;(?&lt;![\w.~-])/(?:&quot; + &quot;work&quot; + &quo
 SOURCE_ROOTS = []  # [(absolute root, placeholder)], longest first; set in main()
 
 
+EPS_CAPTION = (&quot;Face (SVG): GOV.UK traffic sign image, \u00a9 Crown copyright (Department for Transport), &quot;
+               &quot;Open Government Licence v3.0; converted from the EPS&quot;)
+
 def redact(text):
     for root, ph in SOURCE_ROOTS:
         text = text.replace(root, ph)
@@ -182,9 +185,13 @@ def main(argv=None):
         base = &quot;media/%s/%s&quot; % (it[&quot;cat&quot;], it[&quot;slug&quot;])
         it[&quot;media&quot;] = []
         k = it[&quot;preview_kind&quot;]
+        if it.get(&quot;eps_preview&quot;):
+            # r12: EPS face first, with its attribution (the SVG embeds the same notice in &lt;desc&gt;)
+            s.write(base + &quot;--eps.svg&quot;, open(it[&quot;eps_preview&quot;], &quot;rb&quot;).read())
+            it[&quot;media&quot;].append((base + &quot;--eps.svg&quot;, EPS_CAPTION))
         if k == &quot;svg&quot; and it[&quot;preview&quot;]:
             s.write(base + &quot;.svg&quot;, open(it[&quot;preview&quot;], &quot;rb&quot;).read())
-            it[&quot;media&quot;].append((base + &quot;.svg&quot;, &quot;Face (SVG)&quot;))
+            it[&quot;media&quot;].append((base + &quot;.svg&quot;, &quot;Procedural face (SVG), the offline fallback&quot; if it.get(&quot;eps_preview&quot;) else &quot;Face (SVG)&quot;))
         elif k == &quot;war&quot;:
             s.write(base + &quot;.svg&quot;, matrix_svg.war_to_svg(it[&quot;war&quot;][1]))
             it[&quot;media&quot;].append((base + &quot;.svg&quot;, &quot;Matrix grid (lit pixels)&quot;))
@@ -214,7 +221,7 @@ def main(argv=None):
         media = &quot;&quot;.join(&#x27;&lt;figure&gt;&lt;img src=&quot;%s&quot; alt=&quot;%s&quot;/&gt;&lt;figcaption&gt;%s&lt;/figcaption&gt;&lt;/figure&gt;&#x27;
                         % (L(p), E_(it[&quot;id&quot;]), E_(c)) for p, c in it[&quot;media&quot;]) or \
             &#x27;&lt;div class=&quot;noface&quot;&gt;No face: %s&lt;/div&gt;&#x27; % E_(STATUS[it[&quot;status&quot;]][0])
-        if it[&quot;status&quot;] in (&quot;placeholder&quot;, &quot;unverified&quot;) and it[&quot;media&quot;]:
+        if it[&quot;status&quot;] in (&quot;placeholder&quot;, &quot;unverified&quot;) and it[&quot;media&quot;] and not it.get(&quot;eps_preview&quot;):
             media = &#x27;&lt;div class=&quot;phwarn&quot;&gt;PLACEHOLDER: the image is the neutral placeholder, not the sign.&lt;/div&gt;&#x27; + media
         rows = [(&quot;Id&quot;, it[&quot;id&quot;]), (&quot;Name&quot;, it[&quot;name&quot;]), (&quot;Category&quot;, CAT_TITLE[it[&quot;cat&quot;]]), (&quot;Group&quot;, it[&quot;sub&quot;])]
         rows += it[&quot;fields&quot;]
@@ -244,7 +251,10 @@ def main(argv=None):
             th = &#x27;&lt;img loading=&quot;lazy&quot; src=&quot;%s&quot; alt=&quot;&quot;/&gt;&#x27; % s.link(frm, img) if img else &#x27;&lt;div class=&quot;noimg&quot;&gt;no face&lt;/div&gt;&#x27;
             cells.append(&#x27;&lt;a class=&quot;card st-%s&quot; href=&quot;%s&quot;&gt;%s&lt;span class=&quot;cid&quot;&gt;%s&lt;/span&gt;&lt;span class=&quot;cn&quot;&gt;%s&lt;/span&gt;%s&lt;/a&gt;&#x27;
                          % (it[&quot;status&quot;], s.link(frm, it[&quot;url&quot;]), th, E_(it[&quot;id&quot;]), E_(it[&quot;name&quot;]), badge(it[&quot;status&quot;])))
-        return &#x27;&lt;div class=&quot;cards&quot;&gt;%s&lt;/div&gt;&#x27; % &quot;&quot;.join(cells)
+        note = (&#x27;&lt;p class=&quot;attrib&quot;&gt;Faces marked from GOV.UK: traffic sign images \u00a9 Crown copyright (Department for &#x27;
+                &#x27;Transport), Open Government Licence v3.0; converted from the EPS.&lt;/p&gt;&#x27;
+                if any(it.get(&quot;eps_preview&quot;) for it in its) else &quot;&quot;)
+        return &#x27;&lt;div class=&quot;cards&quot;&gt;%s&lt;/div&gt;%s&#x27; % (&quot;&quot;.join(cells), note)
 
     def status_counts(its):
         c = {}

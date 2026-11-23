@@ -92,8 +92,10 @@ def load_atlas(atlas, known):
     si16 = _json(os.path.join(uk, "sources/si2016_diagrams.json"))["diagrams"]
     dec = set(decisions_ids(atlas))
     unv = unverified_ids(atlas)
-    # EPS-first (atlas countries/uk/face_sources.json). The wiki never copies EPS artwork: the preview is
-    # always the atlas's own procedural face, which is the offline fallback for an EPS-sourced face.
+    # EPS-first (atlas countries/uk/face_sources.json). r12: the owner ruled EPS-derived faces may be
+    # republished with attribution (Crown copyright, OGL v3.0). When the atlas has built its local EPS cache
+    # (site/faces-eps/, gitignored there), the page shows the EPS face first, then the atlas's procedural face
+    # (the offline fallback), then the placeholder. Each EPS SVG embeds the notice; tests/check.py checks it.
     fs_path = os.path.join(uk, "face_sources.json")
     face_src = _json(fs_path)["faces"] if os.path.exists(fs_path) else {}
     adjust = known.get("adjust", {})
@@ -105,6 +107,7 @@ def load_atlas(atlas, known):
             m = manifest.get("%s/%s" % (kind, i))
             preview = os.path.join(faces, m["path"]) if m else None
             notes = []
+            eps_preview = None
             if kind == "signs":
                 drawn = bool(row.get("glyph"))
                 if i in dec:
@@ -133,9 +136,18 @@ def load_atlas(atlas, known):
                              "placeholder": "placeholder"}.get(fsrc["source"], fsrc["source"])
                     fields.append(("Face source", label))
                     if fsrc["source"] == "eps":
-                        notes.append("The atlas now takes this face from the GOV.UK EPS artwork. This wiki does not "
-                                     "redistribute that artwork; the preview is the atlas's own procedural face "
-                                     "(the offline fallback)" + (", superseded by the EPS." if fsrc.get("superseded") else "."))
+                        ep = os.path.join(atlas, "site/faces-eps/uk/signs", i.replace("/", "_") + ".svg")
+                        if os.path.exists(ep):
+                            eps_preview = ep
+                            notes.append("Face: GOV.UK traffic sign image, \u00a9 Crown copyright (Department for Transport), "
+                                         "used under the Open Government Licence v3.0 "
+                                         "(https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/); "
+                                         "converted from the EPS by the atlas. The atlas's own procedural face is shown "
+                                         "after it as the offline fallback.")
+                        else:
+                            notes.append("The atlas takes this face from the GOV.UK EPS artwork, which is not built on "
+                                         "this machine; the preview is the atlas's own procedural face (the offline fallback)"
+                                         + (", superseded by the EPS." if fsrc.get("superseded") else "."))
                     elif fsrc.get("why_not_eps") and fsrc.get("eps"):
                         notes.append("Not EPS-sourced: " + "; ".join(fsrc["why_not_eps"]) + ".")
                 lic = OGL
@@ -164,7 +176,7 @@ def load_atlas(atlas, known):
                 lic = "Project data; figures cite their sources (see Licences)"
             items.append(dict(cat=kind, sub=sub, id=i, slug=slugify(i), name=row.get("name") or i,
                               what=row.get("what"), status=status, status_note=note,
-                              preview=preview, preview_kind="svg" if preview else None,
+                              preview=preview, preview_kind="svg" if preview else None, eps_preview=eps_preview,
                               fields=[(k, v) for k, v in fields if v not in (None, "", [])],
                               source_ref=src, licence=lic, notes=notes))
     return items

@@ -98,6 +98,10 @@ def load_atlas(atlas, known):
     si16 = _json(os.path.join(uk, &quot;sources/si2016_diagrams.json&quot;))[&quot;diagrams&quot;]
     dec = set(decisions_ids(atlas))
     unv = unverified_ids(atlas)
+    # EPS-first (atlas countries/uk/face_sources.json). The wiki never copies EPS artwork: the preview is
+    # always the atlas&#x27;s own procedural face, which is the offline fallback for an EPS-sourced face.
+    fs_path = os.path.join(uk, &quot;face_sources.json&quot;)
+    face_src = _json(fs_path)[&quot;faces&quot;] if os.path.exists(fs_path) else {}
     adjust = known.get(&quot;adjust&quot;, {})
     items = []
     for kind, fname in ((&quot;signs&quot;, &quot;signs.json&quot;), (&quot;markings&quot;, &quot;markings.json&quot;), (&quot;furniture&quot;, &quot;furniture.json&quot;)):
@@ -128,6 +132,18 @@ def load_atlas(atlas, known):
                           (&quot;Colours&quot;, &quot;, &quot;.join(row.get(&quot;colours&quot;) or [])),
                           (&quot;Dimensions (m)&quot;, _dims(row.get(&quot;dimensions_m&quot;))),
                           (&quot;OSM tag&quot;, row.get(&quot;osm&quot;))]
+                fsrc = face_src.get(i)
+                if fsrc:
+                    label = {&quot;eps&quot;: &quot;GOV.UK EPS (Crown copyright, OGL v3.0), converted locally by the atlas&quot;,
+                             &quot;procedural&quot;: &quot;procedural (atlas tools/atlas)&quot;,
+                             &quot;placeholder&quot;: &quot;placeholder&quot;}.get(fsrc[&quot;source&quot;], fsrc[&quot;source&quot;])
+                    fields.append((&quot;Face source&quot;, label))
+                    if fsrc[&quot;source&quot;] == &quot;eps&quot;:
+                        notes.append(&quot;The atlas now takes this face from the GOV.UK EPS artwork. This wiki does not &quot;
+                                     &quot;redistribute that artwork; the preview is the atlas&#x27;s own procedural face &quot;
+                                     &quot;(the offline fallback)&quot; + (&quot;, superseded by the EPS.&quot; if fsrc.get(&quot;superseded&quot;) else &quot;.&quot;))
+                    elif fsrc.get(&quot;why_not_eps&quot;) and fsrc.get(&quot;eps&quot;):
+                        notes.append(&quot;Not EPS-sourced: &quot; + &quot;; &quot;.join(fsrc[&quot;why_not_eps&quot;]) + &quot;.&quot;)
                 lic = OGL
             elif kind == &quot;markings&quot;:
                 status = &quot;placeholder&quot; if row.get(&quot;placeholder&quot;) or row.get(&quot;renderer&quot;) == &quot;placeholder&quot; else &quot;drawn&quot;

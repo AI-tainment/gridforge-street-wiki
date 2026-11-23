@@ -92,6 +92,10 @@ def load_atlas(atlas, known):
     si16 = _json(os.path.join(uk, "sources/si2016_diagrams.json"))["diagrams"]
     dec = set(decisions_ids(atlas))
     unv = unverified_ids(atlas)
+    # EPS-first (atlas countries/uk/face_sources.json). The wiki never copies EPS artwork: the preview is
+    # always the atlas's own procedural face, which is the offline fallback for an EPS-sourced face.
+    fs_path = os.path.join(uk, "face_sources.json")
+    face_src = _json(fs_path)["faces"] if os.path.exists(fs_path) else {}
     adjust = known.get("adjust", {})
     items = []
     for kind, fname in (("signs", "signs.json"), ("markings", "markings.json"), ("furniture", "furniture.json")):
@@ -122,6 +126,18 @@ def load_atlas(atlas, known):
                           ("Colours", ", ".join(row.get("colours") or [])),
                           ("Dimensions (m)", _dims(row.get("dimensions_m"))),
                           ("OSM tag", row.get("osm"))]
+                fsrc = face_src.get(i)
+                if fsrc:
+                    label = {"eps": "GOV.UK EPS (Crown copyright, OGL v3.0), converted locally by the atlas",
+                             "procedural": "procedural (atlas tools/atlas)",
+                             "placeholder": "placeholder"}.get(fsrc["source"], fsrc["source"])
+                    fields.append(("Face source", label))
+                    if fsrc["source"] == "eps":
+                        notes.append("The atlas now takes this face from the GOV.UK EPS artwork. This wiki does not "
+                                     "redistribute that artwork; the preview is the atlas's own procedural face "
+                                     "(the offline fallback)" + (", superseded by the EPS." if fsrc.get("superseded") else "."))
+                    elif fsrc.get("why_not_eps") and fsrc.get("eps"):
+                        notes.append("Not EPS-sourced: " + "; ".join(fsrc["why_not_eps"]) + ".")
                 lic = OGL
             elif kind == "markings":
                 status = "placeholder" if row.get("placeholder") or row.get("renderer") == "placeholder" else "drawn"

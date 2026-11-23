@@ -1,11 +1,11 @@
-(a) twice-regen: diff -r exit 0; manifest sha256 run1 df299aeda4c53c4790fc16ae15da19e943901237c2e261a72b58eb4cc22a146b run2 df299aeda4c53c4790fc16ae15da19e943901237c2e261a72b58eb4cc22a146b; files 1393 -> IDENTICAL
-    committed site manifest sha256 df299aeda4c53c4790fc16ae15da19e943901237c2e261a72b58eb4cc22a146b -> IDENTICAL
+(a) twice-regen: diff -r exit 0; manifest sha256 run1 b7e9bf01dc3e3195ce0878575cce08a1a43faa279dacf06cd678c214c416f8dd run2 b7e9bf01dc3e3195ce0878575cce08a1a43faa279dacf06cd678c214c416f8dd; files 1393 -> IDENTICAL
+    committed site manifest sha256 b7e9bf01dc3e3195ce0878575cce08a1a43faa279dacf06cd678c214c416f8dd -> IDENTICAL
 (b) link check: 14963 internal href/src checked, 0 broken
     fonts: 0 font files / @font-face / web-font refs []
     LICENCE: site/LICENCE present and identical to repo LICENCE (CC BY-ND 4.0 legal code): OK
     footer: 698 HTML pages, 0 without the CC BY-ND 4.0 attribution footer []
-    no-name: 1417 files scanned (site/ + tracked), 0 matches []; allow-list empty
-    abs-paths: 1417 files scanned (site/ + tracked), 0 matches []; allow-list empty
+    no-name: 1418 files scanned (site/ + tracked), 0 matches []; allow-list empty
+    abs-paths: 1418 files scanned (site/ + tracked), 0 matches []; allow-list empty
 (c) counts
     item                                 source     wiki  match
     artdraft                                 41       41  OK

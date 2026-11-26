@@ -1,14 +1,18 @@
     sanitise unit: OK
-(a) twice-regen: diff -r exit 0; manifest sha256 run1 1d20b9e8dd163a26cc4cc1a36def10fcf0b10be6260b88a855a92f74b6375d90 run2 1d20b9e8dd163a26cc4cc1a36def10fcf0b10be6260b88a855a92f74b6375d90; files 1562 -> IDENTICAL
-    committed site manifest sha256 1d20b9e8dd163a26cc4cc1a36def10fcf0b10be6260b88a855a92f74b6375d90 -> IDENTICAL
-(b) link check: 16665 internal href/src checked, 0 broken
+(a) twice-regen: diff -r exit 0; manifest sha256 run1 1908bfb0cd2371deac2378327afd91e2fcf8e9a9852fce01270b0b429bb31a28 run2 1908bfb0cd2371deac2378327afd91e2fcf8e9a9852fce01270b0b429bb31a28; files 1602 -> IDENTICAL
+    committed site manifest sha256 1908bfb0cd2371deac2378327afd91e2fcf8e9a9852fce01270b0b429bb31a28 -> IDENTICAL
+(b) link check: 16809 internal href/src checked, 0 broken
     fonts: 0 font files / @font-face / web-font refs []
     EPS attribution: 164 EPS face(s) published, 0 without Crown copyright + OGL v3.0 []
     LICENCE: site/LICENCE present and identical to repo LICENCE (CC BY-ND 4.0 legal code): OK
-    footer: 701 HTML pages, 0 without the CC BY-ND 4.0 attribution footer []
-    no-name: 1590 files scanned (site/ + tracked), 0 matches []; allow-list empty
+    footer: 706 HTML pages, 0 without the CC BY-ND 4.0 attribution footer []
+    no-name: 1630 files scanned (site/ + tracked), 0 matches []; allow-list empty
     standalone-mark: 0 matches []; allow-list empty
-    abs-paths: 1590 files scanned (site/ + tracked), 0 matches []; allow-list empty
+    abs-paths: 1630 files scanned (site/ + tracked), 0 matches []; allow-list empty
+    3D vendor: three.js 0.183.0, 7 file hash(es) OK
+    3D items: 23 furniture3d pages, 22 interactive, 0 missing GLB/poster/listing []
+    3D remote URLs: 0 disallowed resource URL(s) []
+    3D GLB metadata: 0 dirty file(s) []
 (c) counts
     item                                 source     wiki  match
     artdraft                                 41       41  OK

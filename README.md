@@ -41,7 +41,7 @@ yet (each cites its review file). Edit it by hand.
 - Item pages: preview (SVG faces; matrix grids drawn as SVG; 3D rendered to PNG), id, name, diagram ref / source page, status, attribution and licence.
 - Status labels: Drawn, ADJUST (Reviewer), Placeholder, Unverified source, Pending owner decision, Pending sign-off, Art draft not yet imported, Reference placeholder (Spec 020). Placeholder faces show a banner saying the image is the neutral placeholder, not the sign.
 - **Art batches 10-12 decision:** included as their own category, every page labelled "Art draft, not yet imported" (30 drawn) or "Unverified source" (11 with no locatable diagram, no face). They are not merged into the atlas sign pages, which keep showing the atlas' own placeholder until Build imports them.
-- **3D previews:** rendered headlessly from the GLB (LOD0) by `wiki/render3d.py`, a numpy z-buffer software rasteriser (flat shading, alpha blend for glazing). Each module/assembly gets two PNGs: the Architect placeholder materials and Art's look-pack base colours (labelled not for shipping). The look-pack page shows Art's existing preview and swatch PNGs (copied, not re-rendered).
+- **3D previews:** each kit module and assembly is published as a scrubbed GLB plus a still PNG (the poster and fallback). The stills are rendered headlessly from the GLB (LOD0) by `wiki/render3d.py`. An interactive viewer (vendored three.js 0.183.0, MIT, pinned in `wiki/vendor/manifest.json`) starts when the thumbnail is clicked or scrolls into view; nothing is loaded from a CDN. The look-pack page stays 2D (no GLB, and not signed off for shipping). Coverage is listed on `3d-assets.html`.
 
 ## Not included (and why)
 

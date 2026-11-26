@@ -1,0 +1,17 @@
+{
+  "files": {
+    "three/LICENSE": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc",
+    "three/jsm/controls/OrbitControls.js": "09673b997864b8091943d2673637c0f31f7cf67daeddd0902fce9bf098a8d093",
+    "three/jsm/loaders/GLTFLoader.js": "e4e692923224a10bbc00be04365d6356b5e8c48b2bbd1f22a7fe929591646fb8",
+    "three/jsm/utils/BufferGeometryUtils.js": "fda7e946b8e0b5ab39b779206589e7a1079a22eb24efb89d7223e03fdfb1f751",
+    "three/jsm/utils/SkeletonUtils.js": "0761b1e003917b215d25dd81439d854b36034b5a57ce84c2cfe3b02428d7b253",
+    "three/three.core.min.js": "c5f69a04c70de8c95152040c286a3c8a0489603b019dfd61b34c451e3371c4fd",
+    "three/three.module.min.js": "e3ec4d5d223c0119f754150a3d9deef16139074ea17b073e93bbce315ad16eda"
+  },
+  "license": "MIT",
+  "note": "Copied unchanged from the official npm package three@0.183.0 (build/three.module.min.js and its dependency build/three.core.min.js, plus the GLTFLoader and OrbitControls addons). No install or post-install scripts were run. The wiki build only copies these files into site/; it does not fetch them.",
+  "source": "https://registry.npmjs.org/three/-/three-0.183.0.tgz",
+  "source_sha256": "f9f796410f852c5df3c0727cd9928e6d2aa933b2ac2ce23aa04693ee838ff758",
+  "version": "0.183.0",
+  "viewer": "three.js"
+}

@@ -188,6 +188,110 @@ def scan_standalone_mark(site):
     return hits, allow
 
 
+def vendor_manifest():
+    return json.load(open(os.path.join(REPO, "wiki/vendor/manifest.json"), encoding="utf-8"))
+
+
+def check_vendor_hashes():
+    man = vendor_manifest()
+    bad = []
+    for rel, expect in sorted(man["files"].items()):
+        p = os.path.join(REPO, "wiki/vendor", rel)
+        if not os.path.isfile(p):
+            bad.append((rel, "missing"))
+            continue
+        got = hashlib.sha256(open(p, "rb").read()).hexdigest()
+        if got != expect:
+            bad.append((rel, "hash mismatch"))
+    return man, bad
+
+
+def check_3d(site, say):
+    ok = True
+    man, bad = check_vendor_hashes()
+    site_bad = []
+    for rel, expect in sorted(man["files"].items()):
+        sp = os.path.join(site, "assets/vendor", rel)
+        if not os.path.isfile(sp):
+            site_bad.append((rel, "not copied to site"))
+            continue
+        got = hashlib.sha256(open(sp, "rb").read()).hexdigest()
+        if got != expect:
+            site_bad.append((rel, "site hash mismatch"))
+    say("    3D vendor: %s %s, %d file hash(es) %s" % (
+        man.get("viewer"), man.get("version"),
+        len(man["files"]), "OK" if not bad and not site_bad else "FAIL %s %s" % (bad[:3], site_bad[:3])))
+    ok &= not bad and not site_bad
+
+    missing = []
+    pages = 0
+    glb_marked = 0
+    cov_path = os.path.join(site, "3d-assets.html")
+    cov_html = open(cov_path, encoding="utf-8").read() if os.path.isfile(cov_path) else ""
+    item_dir = os.path.join(site, "items/furniture3d")
+    if os.path.isdir(item_dir):
+        for f in sorted(os.listdir(item_dir)):
+            if not f.endswith(".html"):
+                continue
+            pages += 1
+            slug = f[:-5]
+            html = open(os.path.join(item_dir, f), encoding="utf-8").read()
+            has_viewer = 'class="mv"' in html and "data-src=" in html
+            glb_p = os.path.join(site, "media/furniture3d", slug + ".glb")
+            poster = os.path.join(site, "media/furniture3d", slug + ".png")
+            if has_viewer:
+                glb_marked += 1
+                if not os.path.isfile(glb_p) or not os.path.isfile(poster):
+                    missing.append(slug + " missing glb or poster")
+            else:
+                if slug not in cov_html:
+                    missing.append(slug + " has no viewer and is not listed in 3d-assets.html")
+    say("    3D items: %d furniture3d pages, %d interactive, %d missing GLB/poster/listing %s" % (
+        pages, glb_marked, len(missing), missing[:5]))
+    ok &= pages > 0 and glb_marked > 0 and not missing
+
+    remote = []
+    src_re = re.compile(
+        r"(?is)<(?:script|img|source|model-viewer|link)\b[^>]+\b(?:src|href)\s*=\s*[\"'](?:https?:)?//"
+    )
+    for dp, dn, fn in os.walk(site):
+        for f in fn:
+            if not f.endswith((".html", ".js", ".css")):
+                continue
+            rel = os.path.relpath(os.path.join(dp, f), site)
+            if rel.startswith("code") or rel.startswith("assets/vendor/"):
+                continue
+            text = open(os.path.join(dp, f), encoding="utf-8", errors="replace").read()
+            if f.endswith(".html"):
+                if src_re.search(text):
+                    remote.append(rel)
+                if 'type="importmap"' in text:
+                    m = re.search(r'<script type="importmap">(.*?)</script>', text, re.S)
+                    if m and re.search(r"https?:", m.group(1)):
+                        remote.append(rel + " importmap")
+            elif rel == "assets/model-view.js":
+                if re.search(r"['\"]https?://", text):
+                    remote.append(rel)
+    say("    3D remote URLs: %d disallowed resource URL(s) %s" % (len(remote), remote[:5]))
+    ok &= not remote
+
+    mark = "grid" + "forge"
+    home = "/" + "ho" + "me/" + "p" + "hil"
+    dirty = []
+    media = os.path.join(site, "media/furniture3d")
+    if os.path.isdir(media):
+        for f in sorted(os.listdir(media)):
+            if not f.endswith(".glb"):
+                continue
+            b = open(os.path.join(media, f), "rb").read()
+            low = b.lower()
+            if mark.encode() in low or home.encode() in low:
+                dirty.append(f)
+    say("    3D GLB metadata: %d dirty file(s) %s" % (len(dirty), dirty[:5]))
+    ok &= not dirty
+    return ok
+
+
 def main():
     site = os.path.join(REPO, sys.argv[sys.argv.index("--site") + 1]) if "--site" in sys.argv else os.path.join(REPO, "site")
     ok = True
@@ -284,6 +388,10 @@ def main():
         if not os.path.isfile(p):
             continue
         rel = os.path.relpath(p, REPO)
+        # Vendored third-party sources can contain incidental substrings
+        # (e.g. a geometry parameter name); they are pin-hashed separately.
+        if "/vendor/" in rel.replace("\\", "/") and not rel.endswith(("LICENSE", "manifest.json")):
+            continue
         if pat.search(rel):
             hits.append((pat.sub("***", rel), "path"))
         t = open(p, "rb").read().decode("utf-8", "replace")
@@ -310,6 +418,8 @@ def main():
             phits.append((os.path.relpath(p, REPO), m.group(0)))
     say("    abs-paths: %d files scanned (site/ + tracked), %d matches %s; allow-list empty" % (len(set(paths)), len(phits), phits[:5]))
     ok &= not phits
+    # 3D viewer: vendored hashes, GLB+poster, no remote resource URLs, metadata scrub
+    ok &= check_3d(site, say)
     # (c)
     src = source_counts()
     gen, _ = site_counts(site)

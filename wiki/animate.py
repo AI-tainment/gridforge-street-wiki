@@ -2,8 +2,9 @@
 
 Timing is taken from the governing regulation or from atlas records
 (never invented). A range recorded only in the atlas is played at its
-lower end. A range taken from the regulation for verge-ms is played at
-the midpoint of that range. The page quotes the range and the choice.
+lower end. A range taken from the regulation for verge-ms or 3014 is
+played at the midpoint of that range. The page quotes the range and
+the choice.
 Items that look animated in life but have no sourced rate get an
 UNVERIFIED badge and no playback.
 """
@@ -119,6 +120,36 @@ def classify(it, furniture_timing):
             "verified": True,
         }
 
+    # Wig-wag (diagram 3014): Sch 14 Pt 1 para 8, printed page 430.
+    # Steady amber (3 s at level crossings, 5 s otherwise), then
+    # alternating reds at 60-90 flashes/min. Play the midpoint and
+    # show the amber step; the caption states both amber durations.
+    if i == "3014":
+        lo, hi = 60, 90
+        play = (lo + hi) // 2
+        return {
+            "id": i,
+            "sourced": True,
+            "play": True,
+            "badge": None,
+            "kind": "wigwag",
+            "range": (lo, hi),
+            "play_per_min": play,
+            "period_s": 60.0 / play,
+            "pairs_alternate": True,
+            "play_choice": "midpoint",
+            "amber_s": 3.0,
+            "amber_s_other": 5.0,
+            "red_cycles": 8,
+            "svg_title": "Wig-wag playback",
+            "source": (
+                "TSRGD 2016 (SI 2016/362) Schedule 14 Part 1 paragraph 8, "
+                "printed page 430 (item 5, diagram 3014)"
+            ),
+            "reason": "Sourced from the governing regulation",
+            "verified": True,
+        }
+
     if not sourced or not play:
         return {
             "id": i,
@@ -178,10 +209,98 @@ def lamp_pair_svg(meta):
 </svg>
 '''
 
+def playback_svg(meta):
+    """Emit the playback SVG for this item (wig-wag or lamp pair)."""
+    if meta.get("kind") == "wigwag":
+        return wigwag_svg(meta)
+    return lamp_pair_svg(meta)
+
+
+def _fill_steps(segments, total):
+    """Deterministic CSS keyframe stops for a stepped fill animation."""
+    merged = []
+    for t0, t1, color in segments:
+        if merged and merged[-1][2] == color and abs(merged[-1][1] - t0) < 1e-12:
+            merged[-1] = (merged[-1][0], t1, color)
+        else:
+            merged.append((t0, t1, color))
+    blocks = []
+    eps = 0.0001
+    for i, (t0, t1, color) in enumerate(merged):
+        p0 = 100.0 * t0 / total
+        p1 = 100.0 * t1 / total
+        p1_hold = 100.0 if i == len(merged) - 1 else max(p0, p1 - eps)
+        blocks.append("  %.4f%%, %.4f%% { fill:%s; }" % (p0, p1_hold, color))
+    return "\n".join(blocks)
+
+
+def wigwag_svg(meta):
+    """Wig-wag playback: steady amber, then alternating reds.
+
+    The red-phase length of the page loop is not specified in the
+    regulation (in use the reds continue until the sequence ends). It
+    is only long enough for the sourced flash rate to be seen.
+    """
+    amber_s = meta["amber_s"]
+    period = meta["period_s"]
+    n = int(meta.get("red_cycles") or 8)
+    total = amber_s + n * period
+    red = "#CC1A1A"
+    amber = "#F29E14"
+    off = "#2A2A28"
+    amber_seg = [(0.0, amber_s, amber), (amber_s, total, off)]
+    red_a, red_b = [(0.0, amber_s, off)], [(0.0, amber_s, off)]
+    for i in range(n):
+        a0 = amber_s + i * period
+        mid = a0 + period / 2.0
+        a1 = a0 + period
+        red_a.extend([(a0, mid, red), (mid, a1, off)])
+        red_b.extend([(a0, mid, off), (mid, a1, red)])
+    kf_am = _fill_steps(amber_seg, total)
+    kf_a = _fill_steps(red_a, total)
+    kf_b = _fill_steps(red_b, total)
+    title = meta.get("svg_title") or "Wig-wag playback"
+    dur = "%.4f" % total
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 150"'
+        ' width="240" height="150" role="img" class="anim-svg">\n'
+        "<title>" + title + "</title>\n"
+        "<style>\n"
+        ".anim-svg .lamp { stroke:#141414; stroke-width:2; }\n"
+        ".anim-svg .amber { animation:ww-amber " + dur + "s steps(1,end) infinite; }\n"
+        ".anim-svg .red-a { animation:ww-red-a " + dur + "s steps(1,end) infinite; }\n"
+        ".anim-svg .red-b { animation:ww-red-b " + dur + "s steps(1,end) infinite; }\n"
+        "@keyframes ww-amber {\n" + kf_am + "\n}\n"
+        "@keyframes ww-red-a {\n" + kf_a + "\n}\n"
+        "@keyframes ww-red-b {\n" + kf_b + "\n}\n"
+        "@media (prefers-reduced-motion: reduce) {\n"
+        "  .anim-svg .amber, .anim-svg .red-a, .anim-svg .red-b { animation: none; }\n"
+        "  .anim-svg .amber { fill:" + amber + "; }\n"
+        "  .anim-svg .red-a, .anim-svg .red-b { fill:" + red + "; }\n"
+        "}\n"
+        "</style>\n"
+        '<rect x="1" y="1" width="238" height="148" rx="8" fill="#141414" stroke="#6E6C66" stroke-width="2"/>\n'
+        '<circle class="lamp red-a" cx="70" cy="52" r="22" fill="' + off + '"/>\n'
+        '<circle class="lamp red-b" cx="170" cy="52" r="22" fill="' + off + '"/>\n'
+        '<circle class="lamp amber" cx="120" cy="108" r="22" fill="' + off + '"/>\n'
+        "</svg>\n"
+    )
+
 
 def caption(meta):
     if not meta.get("play"):
         return meta["reason"]
+    if meta.get("kind") == "wigwag":
+        lo, hi = meta["range"]
+        return (
+            "Playback starts with a steady amber for 3 s (the duration at level crossings; "
+            "5 s applies at swing or lifting bridges, airfields and emergency-vehicle premises), "
+            "then the red lights flash at %d flashes/min, the midpoint of the sourced range "
+            "%d–%d flashes/min, alternating so one is shown when the other is not. "
+            "The sequence then loops for the page. Source: %s. "
+            "If the system requests reduced motion, the lamps stay lit and the animation is paused."
+            % (meta["play_per_min"], lo, hi, meta["source"])
+        )
     lo, hi = meta["range"]
     play = meta["play_per_min"]
     if meta.get("play_choice") == "midpoint":

@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 150" width="240" height="150" role="img" class="anim-svg">
+<title>Wig-wag playback</title>
+<style>
+.anim-svg .lamp { stroke:#141414; stroke-width:2; }
+.anim-svg .amber { animation:ww-amber 9.4000s steps(1,end) infinite; }
+.anim-svg .red-a { animation:ww-red-a 9.4000s steps(1,end) infinite; }
+.anim-svg .red-b { animation:ww-red-b 9.4000s steps(1,end) infinite; }
+@keyframes ww-amber {
+  0.0000%, 31.9148% { fill:#F29E14; }
+  31.9149%, 100.0000% { fill:#2A2A28; }
+}
+@keyframes ww-red-a {
+  0.0000%, 31.9148% { fill:#2A2A28; }
+  31.9149%, 36.1701% { fill:#CC1A1A; }
+  36.1702%, 40.4254% { fill:#2A2A28; }
+  40.4255%, 44.6808% { fill:#CC1A1A; }
+  44.6809%, 48.9361% { fill:#2A2A28; }
+  48.9362%, 53.1914% { fill:#CC1A1A; }
+  53.1915%, 57.4467% { fill:#2A2A28; }
+  57.4468%, 61.7020% { fill:#CC1A1A; }
+  61.7021%, 65.9573% { fill:#2A2A28; }
+  65.9574%, 70.2127% { fill:#CC1A1A; }
+  70.2128%, 74.4680% { fill:#2A2A28; }
+  74.4681%, 78.7233% { fill:#CC1A1A; }
+  78.7234%, 82.9786% { fill:#2A2A28; }
+  82.9787%, 87.2339% { fill:#CC1A1A; }
+  87.2340%, 91.4893% { fill:#2A2A28; }
+  91.4894%, 95.7446% { fill:#CC1A1A; }
+  95.7447%, 100.0000% { fill:#2A2A28; }
+}
+@keyframes ww-red-b {
+  0.0000%, 36.1701% { fill:#2A2A28; }
+  36.1702%, 40.4254% { fill:#CC1A1A; }
+  40.4255%, 44.6808% { fill:#2A2A28; }
+  44.6809%, 48.9361% { fill:#CC1A1A; }
+  48.9362%, 53.1914% { fill:#2A2A28; }
+  53.1915%, 57.4467% { fill:#CC1A1A; }
+  57.4468%, 61.7020% { fill:#2A2A28; }
+  61.7021%, 65.9573% { fill:#CC1A1A; }
+  65.9574%, 70.2127% { fill:#2A2A28; }
+  70.2128%, 74.4680% { fill:#CC1A1A; }
+  74.4681%, 78.7233% { fill:#2A2A28; }
+  78.7234%, 82.9786% { fill:#CC1A1A; }
+  82.9787%, 87.2339% { fill:#2A2A28; }
+  87.2340%, 91.4893% { fill:#CC1A1A; }
+  91.4894%, 95.7446% { fill:#2A2A28; }
+  95.7447%, 100.0000% { fill:#CC1A1A; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .anim-svg .amber, .anim-svg .red-a, .anim-svg .red-b { animation: none; }
+  .anim-svg .amber { fill:#F29E14; }
+  .anim-svg .red-a, .anim-svg .red-b { fill:#CC1A1A; }
+}
+</style>
+<rect x="1" y="1" width="238" height="148" rx="8" fill="#141414" stroke="#6E6C66" stroke-width="2"/>
+<circle class="lamp red-a" cx="70" cy="52" r="22" fill="#2A2A28"/>
+<circle class="lamp red-b" cx="170" cy="52" r="22" fill="#2A2A28"/>
+<circle class="lamp amber" cx="120" cy="108" r="22" fill="#2A2A28"/>
+</svg>

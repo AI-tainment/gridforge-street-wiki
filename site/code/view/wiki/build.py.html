@@ -253,7 +253,7 @@ def main(argv=None):
                 s.write(rel, recaption.rewrite_png(open(p, &quot;rb&quot;).read()))
                 it[&quot;media&quot;].append((rel, &quot;Art&#x27;s existing image: %s/%s (geometry copied; sign-off caption recast in the wiki pipeline)&quot; % (os.path.basename(os.path.dirname(p)), os.path.basename(p))))
         if it.get(&quot;anim&quot;) and it[&quot;anim&quot;].get(&quot;play&quot;):
-            s.write(base + &quot;--anim.svg&quot;, animate.lamp_pair_svg(it[&quot;anim&quot;]))
+            s.write(base + &quot;--anim.svg&quot;, animate.playback_svg(it[&quot;anim&quot;]))
             it[&quot;anim_rel&quot;] = base + &quot;--anim.svg&quot;
             it[&quot;anim_caption&quot;] = animate.caption(it[&quot;anim&quot;])
         it[&quot;url&quot;] = &quot;items/%s/%s.html&quot; % (it[&quot;cat&quot;], it[&quot;slug&quot;])
@@ -304,9 +304,9 @@ def main(argv=None):
                 anim_badge = &#x27; &lt;span class=&quot;badge info&quot;&gt;Sourced playback&lt;/span&gt;&#x27;
         if it.get(&quot;anim_rel&quot;):
             media += (
-                &#x27;&lt;figure&gt;&lt;img src=&quot;%s&quot; alt=&quot;Lamp-pair playback&quot;/&gt;&lt;figcaption&gt;%s &#x27;
+                &#x27;&lt;figure&gt;&lt;img src=&quot;%s&quot; alt=&quot;%s&quot;/&gt;&lt;figcaption&gt;%s &#x27;
                 &#x27;&lt;span class=&quot;anim-paused&quot;&gt;Animation paused.&lt;/span&gt;&lt;/figcaption&gt;&lt;/figure&gt;&#x27;
-                % (L(it[&quot;anim_rel&quot;]), E_(it[&quot;anim_caption&quot;]))
+                % (L(it[&quot;anim_rel&quot;]), E_(it[&quot;anim&quot;].get(&quot;svg_title&quot;) or &quot;Lamp-pair playback&quot;), E_(it[&quot;anim_caption&quot;]))
             )
         body = f&quot;&quot;&quot;&lt;h1&gt;{E_(it[&#x27;id&#x27;])}: {E_(it[&#x27;name&#x27;])}&lt;/h1&gt;
 &lt;p&gt;{badge(it[&#x27;status&#x27;])}{anim_badge} &lt;span class=&quot;note&quot;&gt;{E_(it[&#x27;status_note&#x27;])}&lt;/span&gt;&lt;/p&gt;{what}

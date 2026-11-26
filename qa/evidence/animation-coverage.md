@@ -3,14 +3,15 @@
 Playback is SVG/CSS built by the wiki generator. A rate is shown only when the governing regulation or the atlas already records one.
 A sourced range is played at its lower end, or at the midpoint when the caption says so, and the range is quoted. Items without a sourced rate get an UNVERIFIED badge and no playback.
 
-## Sourced playback (2)
+## Sourced playback (3)
 
 | Asset | Timing source | Playback |
 | --- | --- | --- |
 | lane-signal | TSRGD 2016 Sch 15 Pt 4 (60-90 flashes/min, pairs alternate); TSRGD 2016 Sch 15 Pts 2 and 4 (printed p509-522, verified) | played at 60/min, lower end of 60–90 |
 | verge-ms | TSRGD 2016 (SI 2016/362) Schedule 15 Part 4 paragraph 3, printed page 522 (item 12, diagram 6022, flashing amber lamps for display on a post) | played at 75/min, midpoint of 60–90 |
+| 3014 | TSRGD 2016 (SI 2016/362) Schedule 14 Part 1 paragraph 8, printed page 430 (item 5, diagram 3014) | played at 75/min, midpoint of 60–90 |
 
-## No playback (29)
+## No playback (28)
 
 | Asset | Timing source | Why |
 | --- | --- | --- |
@@ -42,4 +43,3 @@ A sourced range is played at its lower end, or at the midpoint when the caption 
 | 3013.3 | none in atlas | Animated in use, but no flash rate is recorded in the atlas data. No playback is shown, so a rate is not invented. |
 | 3013.4 | none in atlas | Animated in use, but no flash rate is recorded in the atlas data. No playback is shown, so a rate is not invented. |
 | 3013.5 | none in atlas | Animated in use, but no flash rate is recorded in the atlas data. No playback is shown, so a rate is not invented. |
-| 3014 | none in atlas | Animated in use, but no flash rate is recorded in the atlas data. No playback is shown, so a rate is not invented. |

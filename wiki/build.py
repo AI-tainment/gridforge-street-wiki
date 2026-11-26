@@ -247,7 +247,7 @@ def main(argv=None):
                 s.write(rel, recaption.rewrite_png(open(p, "rb").read()))
                 it["media"].append((rel, "Art's existing image: %s/%s (geometry copied; sign-off caption recast in the wiki pipeline)" % (os.path.basename(os.path.dirname(p)), os.path.basename(p))))
         if it.get("anim") and it["anim"].get("play"):
-            s.write(base + "--anim.svg", animate.lamp_pair_svg(it["anim"]))
+            s.write(base + "--anim.svg", animate.playback_svg(it["anim"]))
             it["anim_rel"] = base + "--anim.svg"
             it["anim_caption"] = animate.caption(it["anim"])
         it["url"] = "items/%s/%s.html" % (it["cat"], it["slug"])
@@ -298,9 +298,9 @@ def main(argv=None):
                 anim_badge = ' <span class="badge info">Sourced playback</span>'
         if it.get("anim_rel"):
             media += (
-                '<figure><img src="%s" alt="Lamp-pair playback"/><figcaption>%s '
+                '<figure><img src="%s" alt="%s"/><figcaption>%s '
                 '<span class="anim-paused">Animation paused.</span></figcaption></figure>'
-                % (L(it["anim_rel"]), E_(it["anim_caption"]))
+                % (L(it["anim_rel"]), E_(it["anim"].get("svg_title") or "Lamp-pair playback"), E_(it["anim_caption"]))
             )
         body = f"""<h1>{E_(it['id'])}: {E_(it['name'])}</h1>
 <p>{badge(it['status'])}{anim_badge} <span class="note">{E_(it['status_note'])}</span></p>{what}

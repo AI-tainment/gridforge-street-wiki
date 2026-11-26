@@ -1,18 +1,22 @@
     sanitise unit: OK
-(a) twice-regen: diff -r exit 0; manifest sha256 run1 1908bfb0cd2371deac2378327afd91e2fcf8e9a9852fce01270b0b429bb31a28 run2 1908bfb0cd2371deac2378327afd91e2fcf8e9a9852fce01270b0b429bb31a28; files 1602 -> IDENTICAL
-    committed site manifest sha256 1908bfb0cd2371deac2378327afd91e2fcf8e9a9852fce01270b0b429bb31a28 -> IDENTICAL
-(b) link check: 16809 internal href/src checked, 0 broken
+(a) twice-regen: diff -r exit 0; manifest sha256 run1 e8070d81f6ef59c8571487a6c7e144ad3c45438832ad3cc297f25e8bd9b7e18b run2 e8070d81f6ef59c8571487a6c7e144ad3c45438832ad3cc297f25e8bd9b7e18b; files 1607 -> IDENTICAL
+    committed site manifest sha256 e8070d81f6ef59c8571487a6c7e144ad3c45438832ad3cc297f25e8bd9b7e18b -> IDENTICAL
+(b) link check: 16882 internal href/src checked, 0 broken
     fonts: 0 font files / @font-face / web-font refs []
     EPS attribution: 164 EPS face(s) published, 0 without Crown copyright + OGL v3.0 []
     LICENCE: site/LICENCE present and identical to repo LICENCE (CC BY-ND 4.0 legal code): OK
-    footer: 706 HTML pages, 0 without the CC BY-ND 4.0 attribution footer []
-    no-name: 1630 files scanned (site/ + tracked), 0 matches []; allow-list empty
+    footer: 708 HTML pages, 0 without the CC BY-ND 4.0 attribution footer []
+    no-name: 1651 files scanned (site/ + tracked), 0 matches []; allow-list empty
     standalone-mark: 0 matches []; allow-list empty
-    abs-paths: 1630 files scanned (site/ + tracked), 0 matches []; allow-list empty
+    abs-paths: 1651 files scanned (site/ + tracked), 0 matches []; allow-list empty
     3D vendor: three.js 0.183.0, 7 file hash(es) OK
     3D items: 23 furniture3d pages, 22 interactive, 0 missing GLB/poster/listing []
     3D remote URLs: 0 disallowed resource URL(s) []
     3D GLB metadata: 0 dirty file(s) []
+    animation reduced-motion CSS: OK
+    animation coverage page: OK
+    animation items: 2 sourced playback, 29 UNVERIFIED, 0 problems []
+    animation paused note: OK
 (c) counts
     item                                 source     wiki  match
     artdraft                                 41       41  OK

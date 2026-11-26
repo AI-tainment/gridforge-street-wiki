@@ -15,7 +15,7 @@ sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-import config, loaders, render3d, matrix_svg, sanitise, glb as glbfile  # noqa: E402
+import config, loaders, render3d, matrix_svg, sanitise, glb as glbfile, animate  # noqa: E402
 
 E_ = html.escape
 CATS = [
@@ -186,6 +186,13 @@ def main(argv=None):
     items.append(look_item)
     unique_slugs(items)
     items.sort(key=lambda x: (x["cat"], x["sub"], x["id"], x["slug"]))
+    furn_timing = animate.load_furniture_timing(a.atlas)
+    for it in items:
+        meta = animate.classify(it, furn_timing)
+        if meta:
+            # Playback SVGs are generated here (wiki compilation, CC BY-ND) and
+            # cite atlas timing. They are not third-party animation files.
+            it["anim"] = meta
     look_pal = {k: v["pbr"]["baseColorFactor"] for k, v in sorted(mats.get("materials", {}).items())
                 if isinstance(v, dict) and "pbr" in v and "baseColorFactor" in v["pbr"]}
 
@@ -239,6 +246,10 @@ def main(argv=None):
                 rel = "%s/%s/%s" % (base, os.path.basename(os.path.dirname(p)), os.path.basename(p))
                 s.write(rel, open(p, "rb").read())
                 it["media"].append((rel, "Art's existing image: %s/%s (copied, not re-rendered)" % (os.path.basename(os.path.dirname(p)), os.path.basename(p))))
+        if it.get("anim") and it["anim"].get("play"):
+            s.write(base + "--anim.svg", animate.lamp_pair_svg(it["anim"]))
+            it["anim_rel"] = base + "--anim.svg"
+            it["anim_caption"] = animate.caption(it["anim"])
         it["url"] = "items/%s/%s.html" % (it["cat"], it["slug"])
         if it.get("cat") == "furniture3d" and "view3d" not in it:
             it["view3d"] = False
@@ -279,8 +290,20 @@ def main(argv=None):
             extra = "<h2>Materials (materials.json)</h2><table class='grid'><tr><th>Slot</th><th>Name</th><th>Base colour</th><th>Verified</th></tr>%s</table>" % mrows
         notes = "".join("<li>%s</li>" % E_(n) for n in it["notes"])
         what = "<p>%s</p>" % E_(it["what"]) if it.get("what") else ""
+        anim_badge = ""
+        if it.get("anim"):
+            if it["anim"].get("badge") == "UNVERIFIED":
+                anim_badge = ' <span class="badge bad">UNVERIFIED timing</span> <span class="note">%s</span>' % E_(it["anim"]["reason"])
+            elif it["anim"].get("play"):
+                anim_badge = ' <span class="badge info">Sourced playback</span>'
+        if it.get("anim_rel"):
+            media += (
+                '<figure><img src="%s" alt="Lamp-pair playback"/><figcaption>%s '
+                '<span class="anim-paused">Animation paused.</span></figcaption></figure>'
+                % (L(it["anim_rel"]), E_(it["anim_caption"]))
+            )
         body = f"""<h1>{E_(it['id'])}: {E_(it['name'])}</h1>
-<p>{badge(it['status'])} <span class="note">{E_(it['status_note'])}</span></p>{what}
+<p>{badge(it['status'])}{anim_badge} <span class="note">{E_(it['status_note'])}</span></p>{what}
 <div class="media">{media}</div>
 <table class="kv">{tbl}</table>{('<ul class="notes">%s</ul>' % notes) if notes else ''}{extra}"""
         crumbs = [("cat/%s.html" % it["cat"], CAT_TITLE[it["cat"]])]
@@ -288,10 +311,21 @@ def main(argv=None):
             crumbs.append((subp, it["sub"]))
         s.page(rel, "%s %s" % (it["id"], it["name"]), body, crumbs, viewer=bool(it.get("view3d")))
 
+    def anim_badges(it):
+        bits = [badge(it["status"])]
+        if it.get("anim") and it["anim"].get("badge") == "UNVERIFIED":
+            bits.append('<span class="badge bad">UNVERIFIED timing</span>')
+        elif it.get("anim") and it["anim"].get("play"):
+            bits.append('<span class="badge info">Sourced playback</span>')
+        return "".join(bits)
+
     def item_grid(frm, its):
         cells = []
         for it in its:
             img = it["media"][0][0] if it["media"] else None
+            extra = ""
+            if it.get("anim_rel"):
+                extra = '<img class="anim-thumb" loading="lazy" src="%s" alt="Playback"/>' % s.link(frm, it["anim_rel"])
             if it.get("view3d") and it.get("glb_rel") and img:
                 th = (
                     '<div class="mv" data-src="%s" data-poster="%s" data-alt="%s">'
@@ -299,12 +333,12 @@ def main(argv=None):
                     '<img loading="lazy" src="%s" alt=""/><span class="mv-hint">3D</span></button></div>'
                     % (s.link(frm, it["glb_rel"]), s.link(frm, it["poster_rel"]), E_(it["id"]), s.link(frm, img)))
                 cells.append(
-                    '<div class="card st-%s">%s<a href="%s"><span class="cid">%s</span><span class="cn">%s</span></a>%s</div>'
-                    % (it["status"], th, s.link(frm, it["url"]), E_(it["id"]), E_(it["name"]), badge(it["status"])))
+                    '<div class="card st-%s">%s%s<a href="%s"><span class="cid">%s</span><span class="cn">%s</span></a>%s</div>'
+                    % (it["status"], th, extra, s.link(frm, it["url"]), E_(it["id"]), E_(it["name"]), anim_badges(it)))
             else:
                 th = '<img loading="lazy" src="%s" alt=""/>' % s.link(frm, img) if img else '<div class="noimg">no face</div>'
-                cells.append('<a class="card st-%s" href="%s">%s<span class="cid">%s</span><span class="cn">%s</span>%s</a>'
-                             % (it["status"], s.link(frm, it["url"]), th, E_(it["id"]), E_(it["name"]), badge(it["status"])))
+                cells.append('<a class="card st-%s" href="%s">%s%s<span class="cid">%s</span><span class="cn">%s</span>%s</a>'
+                             % (it["status"], s.link(frm, it["url"]), th, extra, E_(it["id"]), E_(it["name"]), anim_badges(it)))
         note = ('<p class="attrib">Faces marked from GOV.UK: traffic sign images \u00a9 Crown copyright (Department for '
                 'Transport), Open Government Licence v3.0; converted from the EPS.</p>'
                 if any(it.get("eps_preview") for it in its) else "")
@@ -346,7 +380,7 @@ def main(argv=None):
         "all-signs.html",
         "All signs",
         "<h1>All signs</h1><p>%d UK sign faces, one card each. Open a card for the full item page, "
-        "diagram reference and licence. Families are also listed under <a href=\"%s\">Signs</a>.</p>"
+        "diagram reference and licence. Families are also listed under <a href=\"%s\">Signs</a>. Animated signs: see <a href=\"animation-coverage.html\">animation coverage</a>.</p>"
         "<p>%s</p>%s" % (
             len(signs_all),
             s.link("all-signs.html", "cat/signs.html"),
@@ -406,6 +440,32 @@ def main(argv=None):
         "<h2>Covered (%d)</h2><table class=\"grid\"><tr><th>Asset</th><th>Licence</th><th>Why</th></tr>%s</table>"
         "<h2>Not covered (%d)</h2><table class=\"grid\"><tr><th>Asset</th><th>Licence</th><th>Why</th></tr>%s</table>" % (
             len(cov_rows), "".join(cov_rows), len(skip_rows), "".join(skip_rows)),
+    )
+
+    # ---- animation coverage
+    anim_items = [it for it in items if it.get("anim")]
+    play_rows, hold_rows = [], []
+    for it in anim_items:
+        link = s.link("animation-coverage.html", it["url"])
+        meta = it["anim"]
+        src = meta.get("source") or "none in atlas"
+        if meta.get("play"):
+            play_rows.append("<tr><td><a href=\"%s\">%s</a></td><td>%s</td><td>%s</td></tr>" % (
+                link, E_(it["id"]), E_(src), E_("played at %d/min, lower end of %d–%d" % (
+                    meta["play_per_min"], meta["range"][0], meta["range"][1]))))
+        else:
+            hold_rows.append("<tr><td><a href=\"%s\">%s</a></td><td>%s</td><td>%s</td></tr>" % (
+                link, E_(it["id"]), E_(src), E_(meta.get("reason") or "no playback")))
+    s.page(
+        "animation-coverage.html",
+        "Animated sign coverage",
+        "<h1>Animated sign coverage</h1>"
+        "<p>Playback is built as SVG and CSS by the generator. A rate is shown only when the atlas already records one; "
+        "a sourced range is played at its lower end and the range is quoted. Items without a sourced rate get an UNVERIFIED badge and no playback, so a rate is not invented. "
+        "If the system requests reduced motion, lamps stay lit and the page shows an animation-paused note.</p>"
+        "<h2>Sourced playback (%d)</h2><table class=\"grid\"><tr><th>Asset</th><th>Timing source</th><th>Playback</th></tr>%s</table>"
+        "<h2>No playback (%d)</h2><table class=\"grid\"><tr><th>Asset</th><th>Timing source</th><th>Why</th></tr>%s</table>" % (
+            len(play_rows), "".join(play_rows), len(hold_rows), "".join(hold_rows)),
     )
 
     # ---- licences

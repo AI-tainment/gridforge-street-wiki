@@ -6,7 +6,7 @@ cd "$(dirname "$0")/../.."
 OUT=qa/evidence
 mkdir -p "$OUT"
 PORT=8765
-python3 -m http.server "$PORT" --directory site >/tmp/wiki-http-3d.log 2>&1 &
+python3 -m http.server "$PORT" --directory site >/dev/null 2>&1 &
 PID=$!
 trap 'kill $PID 2>/dev/null || true' EXIT
 sleep 0.3

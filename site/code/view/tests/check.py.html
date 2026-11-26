@@ -298,6 +298,66 @@ def check_3d(site, say):
     return ok
 
 
+def check_animation(site, say):
+    ok = True
+    # reduced-motion CSS present in the published stylesheet
+    css = open(os.path.join(site, &quot;assets/wiki.css&quot;), encoding=&quot;utf-8&quot;).read()
+    rm = &quot;prefers-reduced-motion&quot; in css and &quot;anim-paused&quot; in css
+    say(&quot;    animation reduced-motion CSS: %s&quot; % (&quot;OK&quot; if rm else &quot;FAIL&quot;))
+    ok &amp;= rm
+    cov = os.path.join(site, &quot;animation-coverage.html&quot;)
+    cov_ok = os.path.isfile(cov)
+    say(&quot;    animation coverage page: %s&quot; % (&quot;OK&quot; if cov_ok else &quot;FAIL&quot;))
+    ok &amp;= cov_ok
+    # every published playback SVG has a sourced period and a matching item page
+    missing, unverified, played = [], 0, 0
+    for cat in (&quot;signs&quot;, &quot;furniture&quot;):
+        d = os.path.join(site, &quot;items&quot;, cat)
+        if not os.path.isdir(d):
+            continue
+        for f in sorted(os.listdir(d)):
+            if not f.endswith(&quot;.html&quot;):
+                continue
+            html = open(os.path.join(d, f), encoding=&quot;utf-8&quot;).read()
+            slug = f[:-5]
+            has_badge = &quot;UNVERIFIED timing&quot; in html
+            has_play = &quot;--anim.svg&quot; in html or &quot;Sourced playback&quot; in html
+            if has_play:
+                played += 1
+                anim = os.path.join(site, &quot;media&quot;, cat, slug + &quot;--anim.svg&quot;)
+                if not os.path.isfile(anim):
+                    missing.append(slug + &quot; playback page without SVG&quot;)
+                else:
+                    svg = open(anim, encoding=&quot;utf-8&quot;).read()
+                    if &quot;prefers-reduced-motion&quot; not in svg:
+                        missing.append(slug + &quot; SVG missing reduced-motion&quot;)
+                if &quot;Source:&quot; not in html and &quot;Sch 15&quot; not in html:
+                    missing.append(slug + &quot; page missing timing source&quot;)
+                if has_badge:
+                    missing.append(slug + &quot; playback also has UNVERIFIED badge&quot;)
+            elif has_badge:
+                unverified += 1
+                if os.path.isfile(os.path.join(site, &quot;media&quot;, cat, slug + &quot;--anim.svg&quot;)):
+                    missing.append(slug + &quot; UNVERIFIED item has a playback SVG&quot;)
+    say(&quot;    animation items: %d sourced playback, %d UNVERIFIED, %d problems %s&quot; % (
+        played, unverified, len(missing), missing[:5]))
+    ok &amp;= played &gt;= 1 and unverified &gt;= 1 and not missing
+    # &quot;animation paused&quot; note is in playback captions
+    if played:
+        # sample one known item
+        for sample in (&quot;items/furniture/lane-signal.html&quot;, &quot;items/furniture/verge-ms.html&quot;):
+            fp = os.path.join(site, sample)
+            if os.path.isfile(fp):
+                html = open(fp, encoding=&quot;utf-8&quot;).read()
+                if &quot;anim-paused&quot; not in html:
+                    say(&quot;    animation paused note: FAIL on %s&quot; % sample)
+                    ok = False
+                else:
+                    say(&quot;    animation paused note: OK&quot;)
+                break
+    return ok
+
+
 def main():
     site = os.path.join(REPO, sys.argv[sys.argv.index(&quot;--site&quot;) + 1]) if &quot;--site&quot; in sys.argv else os.path.join(REPO, &quot;site&quot;)
     ok = True
@@ -426,6 +486,7 @@ def main():
     ok &amp;= not phits
     # 3D viewer: vendored hashes, GLB+poster, no remote resource URLs, metadata scrub
     ok &amp;= check_3d(site, say)
+    ok &amp;= check_animation(site, say)
     # (c)
     src = source_counts()
     gen, _ = site_counts(site)

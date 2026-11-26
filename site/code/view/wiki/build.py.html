@@ -21,7 +21,7 @@ sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-import config, loaders, render3d, matrix_svg, sanitise, glb as glbfile  # noqa: E402
+import config, loaders, render3d, matrix_svg, sanitise, glb as glbfile, animate  # noqa: E402
 
 E_ = html.escape
 CATS = [
@@ -192,6 +192,13 @@ def main(argv=None):
     items.append(look_item)
     unique_slugs(items)
     items.sort(key=lambda x: (x[&quot;cat&quot;], x[&quot;sub&quot;], x[&quot;id&quot;], x[&quot;slug&quot;]))
+    furn_timing = animate.load_furniture_timing(a.atlas)
+    for it in items:
+        meta = animate.classify(it, furn_timing)
+        if meta:
+            # Playback SVGs are generated here (wiki compilation, CC BY-ND) and
+            # cite atlas timing. They are not third-party animation files.
+            it[&quot;anim&quot;] = meta
     look_pal = {k: v[&quot;pbr&quot;][&quot;baseColorFactor&quot;] for k, v in sorted(mats.get(&quot;materials&quot;, {}).items())
                 if isinstance(v, dict) and &quot;pbr&quot; in v and &quot;baseColorFactor&quot; in v[&quot;pbr&quot;]}
 
@@ -245,6 +252,10 @@ def main(argv=None):
                 rel = &quot;%s/%s/%s&quot; % (base, os.path.basename(os.path.dirname(p)), os.path.basename(p))
                 s.write(rel, open(p, &quot;rb&quot;).read())
                 it[&quot;media&quot;].append((rel, &quot;Art&#x27;s existing image: %s/%s (copied, not re-rendered)&quot; % (os.path.basename(os.path.dirname(p)), os.path.basename(p))))
+        if it.get(&quot;anim&quot;) and it[&quot;anim&quot;].get(&quot;play&quot;):
+            s.write(base + &quot;--anim.svg&quot;, animate.lamp_pair_svg(it[&quot;anim&quot;]))
+            it[&quot;anim_rel&quot;] = base + &quot;--anim.svg&quot;
+            it[&quot;anim_caption&quot;] = animate.caption(it[&quot;anim&quot;])
         it[&quot;url&quot;] = &quot;items/%s/%s.html&quot; % (it[&quot;cat&quot;], it[&quot;slug&quot;])
         if it.get(&quot;cat&quot;) == &quot;furniture3d&quot; and &quot;view3d&quot; not in it:
             it[&quot;view3d&quot;] = False
@@ -285,8 +296,20 @@ def main(argv=None):
             extra = &quot;&lt;h2&gt;Materials (materials.json)&lt;/h2&gt;&lt;table class=&#x27;grid&#x27;&gt;&lt;tr&gt;&lt;th&gt;Slot&lt;/th&gt;&lt;th&gt;Name&lt;/th&gt;&lt;th&gt;Base colour&lt;/th&gt;&lt;th&gt;Verified&lt;/th&gt;&lt;/tr&gt;%s&lt;/table&gt;&quot; % mrows
         notes = &quot;&quot;.join(&quot;&lt;li&gt;%s&lt;/li&gt;&quot; % E_(n) for n in it[&quot;notes&quot;])
         what = &quot;&lt;p&gt;%s&lt;/p&gt;&quot; % E_(it[&quot;what&quot;]) if it.get(&quot;what&quot;) else &quot;&quot;
+        anim_badge = &quot;&quot;
+        if it.get(&quot;anim&quot;):
+            if it[&quot;anim&quot;].get(&quot;badge&quot;) == &quot;UNVERIFIED&quot;:
+                anim_badge = &#x27; &lt;span class=&quot;badge bad&quot;&gt;UNVERIFIED timing&lt;/span&gt; &lt;span class=&quot;note&quot;&gt;%s&lt;/span&gt;&#x27; % E_(it[&quot;anim&quot;][&quot;reason&quot;])
+            elif it[&quot;anim&quot;].get(&quot;play&quot;):
+                anim_badge = &#x27; &lt;span class=&quot;badge info&quot;&gt;Sourced playback&lt;/span&gt;&#x27;
+        if it.get(&quot;anim_rel&quot;):
+            media += (
+                &#x27;&lt;figure&gt;&lt;img src=&quot;%s&quot; alt=&quot;Lamp-pair playback&quot;/&gt;&lt;figcaption&gt;%s &#x27;
+                &#x27;&lt;span class=&quot;anim-paused&quot;&gt;Animation paused.&lt;/span&gt;&lt;/figcaption&gt;&lt;/figure&gt;&#x27;
+                % (L(it[&quot;anim_rel&quot;]), E_(it[&quot;anim_caption&quot;]))
+            )
         body = f&quot;&quot;&quot;&lt;h1&gt;{E_(it[&#x27;id&#x27;])}: {E_(it[&#x27;name&#x27;])}&lt;/h1&gt;
-&lt;p&gt;{badge(it[&#x27;status&#x27;])} &lt;span class=&quot;note&quot;&gt;{E_(it[&#x27;status_note&#x27;])}&lt;/span&gt;&lt;/p&gt;{what}
+&lt;p&gt;{badge(it[&#x27;status&#x27;])}{anim_badge} &lt;span class=&quot;note&quot;&gt;{E_(it[&#x27;status_note&#x27;])}&lt;/span&gt;&lt;/p&gt;{what}
 &lt;div class=&quot;media&quot;&gt;{media}&lt;/div&gt;
 &lt;table class=&quot;kv&quot;&gt;{tbl}&lt;/table&gt;{(&#x27;&lt;ul class=&quot;notes&quot;&gt;%s&lt;/ul&gt;&#x27; % notes) if notes else &#x27;&#x27;}{extra}&quot;&quot;&quot;
         crumbs = [(&quot;cat/%s.html&quot; % it[&quot;cat&quot;], CAT_TITLE[it[&quot;cat&quot;]])]
@@ -294,10 +317,21 @@ def main(argv=None):
             crumbs.append((subp, it[&quot;sub&quot;]))
         s.page(rel, &quot;%s %s&quot; % (it[&quot;id&quot;], it[&quot;name&quot;]), body, crumbs, viewer=bool(it.get(&quot;view3d&quot;)))
 
+    def anim_badges(it):
+        bits = [badge(it[&quot;status&quot;])]
+        if it.get(&quot;anim&quot;) and it[&quot;anim&quot;].get(&quot;badge&quot;) == &quot;UNVERIFIED&quot;:
+            bits.append(&#x27;&lt;span class=&quot;badge bad&quot;&gt;UNVERIFIED timing&lt;/span&gt;&#x27;)
+        elif it.get(&quot;anim&quot;) and it[&quot;anim&quot;].get(&quot;play&quot;):
+            bits.append(&#x27;&lt;span class=&quot;badge info&quot;&gt;Sourced playback&lt;/span&gt;&#x27;)
+        return &quot;&quot;.join(bits)
+
     def item_grid(frm, its):
         cells = []
         for it in its:
             img = it[&quot;media&quot;][0][0] if it[&quot;media&quot;] else None
+            extra = &quot;&quot;
+            if it.get(&quot;anim_rel&quot;):
+                extra = &#x27;&lt;img class=&quot;anim-thumb&quot; loading=&quot;lazy&quot; src=&quot;%s&quot; alt=&quot;Playback&quot;/&gt;&#x27; % s.link(frm, it[&quot;anim_rel&quot;])
             if it.get(&quot;view3d&quot;) and it.get(&quot;glb_rel&quot;) and img:
                 th = (
                     &#x27;&lt;div class=&quot;mv&quot; data-src=&quot;%s&quot; data-poster=&quot;%s&quot; data-alt=&quot;%s&quot;&gt;&#x27;
@@ -305,12 +339,12 @@ def main(argv=None):
                     &#x27;&lt;img loading=&quot;lazy&quot; src=&quot;%s&quot; alt=&quot;&quot;/&gt;&lt;span class=&quot;mv-hint&quot;&gt;3D&lt;/span&gt;&lt;/button&gt;&lt;/div&gt;&#x27;
                     % (s.link(frm, it[&quot;glb_rel&quot;]), s.link(frm, it[&quot;poster_rel&quot;]), E_(it[&quot;id&quot;]), s.link(frm, img)))
                 cells.append(
-                    &#x27;&lt;div class=&quot;card st-%s&quot;&gt;%s&lt;a href=&quot;%s&quot;&gt;&lt;span class=&quot;cid&quot;&gt;%s&lt;/span&gt;&lt;span class=&quot;cn&quot;&gt;%s&lt;/span&gt;&lt;/a&gt;%s&lt;/div&gt;&#x27;
-                    % (it[&quot;status&quot;], th, s.link(frm, it[&quot;url&quot;]), E_(it[&quot;id&quot;]), E_(it[&quot;name&quot;]), badge(it[&quot;status&quot;])))
+                    &#x27;&lt;div class=&quot;card st-%s&quot;&gt;%s%s&lt;a href=&quot;%s&quot;&gt;&lt;span class=&quot;cid&quot;&gt;%s&lt;/span&gt;&lt;span class=&quot;cn&quot;&gt;%s&lt;/span&gt;&lt;/a&gt;%s&lt;/div&gt;&#x27;
+                    % (it[&quot;status&quot;], th, extra, s.link(frm, it[&quot;url&quot;]), E_(it[&quot;id&quot;]), E_(it[&quot;name&quot;]), anim_badges(it)))
             else:
                 th = &#x27;&lt;img loading=&quot;lazy&quot; src=&quot;%s&quot; alt=&quot;&quot;/&gt;&#x27; % s.link(frm, img) if img else &#x27;&lt;div class=&quot;noimg&quot;&gt;no face&lt;/div&gt;&#x27;
-                cells.append(&#x27;&lt;a class=&quot;card st-%s&quot; href=&quot;%s&quot;&gt;%s&lt;span class=&quot;cid&quot;&gt;%s&lt;/span&gt;&lt;span class=&quot;cn&quot;&gt;%s&lt;/span&gt;%s&lt;/a&gt;&#x27;
-                             % (it[&quot;status&quot;], s.link(frm, it[&quot;url&quot;]), th, E_(it[&quot;id&quot;]), E_(it[&quot;name&quot;]), badge(it[&quot;status&quot;])))
+                cells.append(&#x27;&lt;a class=&quot;card st-%s&quot; href=&quot;%s&quot;&gt;%s%s&lt;span class=&quot;cid&quot;&gt;%s&lt;/span&gt;&lt;span class=&quot;cn&quot;&gt;%s&lt;/span&gt;%s&lt;/a&gt;&#x27;
+                             % (it[&quot;status&quot;], s.link(frm, it[&quot;url&quot;]), th, extra, E_(it[&quot;id&quot;]), E_(it[&quot;name&quot;]), anim_badges(it)))
         note = (&#x27;&lt;p class=&quot;attrib&quot;&gt;Faces marked from GOV.UK: traffic sign images \u00a9 Crown copyright (Department for &#x27;
                 &#x27;Transport), Open Government Licence v3.0; converted from the EPS.&lt;/p&gt;&#x27;
                 if any(it.get(&quot;eps_preview&quot;) for it in its) else &quot;&quot;)
@@ -352,7 +386,7 @@ def main(argv=None):
         &quot;all-signs.html&quot;,
         &quot;All signs&quot;,
         &quot;&lt;h1&gt;All signs&lt;/h1&gt;&lt;p&gt;%d UK sign faces, one card each. Open a card for the full item page, &quot;
-        &quot;diagram reference and licence. Families are also listed under &lt;a href=\&quot;%s\&quot;&gt;Signs&lt;/a&gt;.&lt;/p&gt;&quot;
+        &quot;diagram reference and licence. Families are also listed under &lt;a href=\&quot;%s\&quot;&gt;Signs&lt;/a&gt;. Animated signs: see &lt;a href=\&quot;animation-coverage.html\&quot;&gt;animation coverage&lt;/a&gt;.&lt;/p&gt;&quot;
         &quot;&lt;p&gt;%s&lt;/p&gt;%s&quot; % (
             len(signs_all),
             s.link(&quot;all-signs.html&quot;, &quot;cat/signs.html&quot;),
@@ -412,6 +446,32 @@ def main(argv=None):
         &quot;&lt;h2&gt;Covered (%d)&lt;/h2&gt;&lt;table class=\&quot;grid\&quot;&gt;&lt;tr&gt;&lt;th&gt;Asset&lt;/th&gt;&lt;th&gt;Licence&lt;/th&gt;&lt;th&gt;Why&lt;/th&gt;&lt;/tr&gt;%s&lt;/table&gt;&quot;
         &quot;&lt;h2&gt;Not covered (%d)&lt;/h2&gt;&lt;table class=\&quot;grid\&quot;&gt;&lt;tr&gt;&lt;th&gt;Asset&lt;/th&gt;&lt;th&gt;Licence&lt;/th&gt;&lt;th&gt;Why&lt;/th&gt;&lt;/tr&gt;%s&lt;/table&gt;&quot; % (
             len(cov_rows), &quot;&quot;.join(cov_rows), len(skip_rows), &quot;&quot;.join(skip_rows)),
+    )
+
+    # ---- animation coverage
+    anim_items = [it for it in items if it.get(&quot;anim&quot;)]
+    play_rows, hold_rows = [], []
+    for it in anim_items:
+        link = s.link(&quot;animation-coverage.html&quot;, it[&quot;url&quot;])
+        meta = it[&quot;anim&quot;]
+        src = meta.get(&quot;source&quot;) or &quot;none in atlas&quot;
+        if meta.get(&quot;play&quot;):
+            play_rows.append(&quot;&lt;tr&gt;&lt;td&gt;&lt;a href=\&quot;%s\&quot;&gt;%s&lt;/a&gt;&lt;/td&gt;&lt;td&gt;%s&lt;/td&gt;&lt;td&gt;%s&lt;/td&gt;&lt;/tr&gt;&quot; % (
+                link, E_(it[&quot;id&quot;]), E_(src), E_(&quot;played at %d/min, lower end of %d–%d&quot; % (
+                    meta[&quot;play_per_min&quot;], meta[&quot;range&quot;][0], meta[&quot;range&quot;][1]))))
+        else:
+            hold_rows.append(&quot;&lt;tr&gt;&lt;td&gt;&lt;a href=\&quot;%s\&quot;&gt;%s&lt;/a&gt;&lt;/td&gt;&lt;td&gt;%s&lt;/td&gt;&lt;td&gt;%s&lt;/td&gt;&lt;/tr&gt;&quot; % (
+                link, E_(it[&quot;id&quot;]), E_(src), E_(meta.get(&quot;reason&quot;) or &quot;no playback&quot;)))
+    s.page(
+        &quot;animation-coverage.html&quot;,
+        &quot;Animated sign coverage&quot;,
+        &quot;&lt;h1&gt;Animated sign coverage&lt;/h1&gt;&quot;
+        &quot;&lt;p&gt;Playback is built as SVG and CSS by the generator. A rate is shown only when the atlas already records one; &quot;
+        &quot;a sourced range is played at its lower end and the range is quoted. Items without a sourced rate get an UNVERIFIED badge and no playback, so a rate is not invented. &quot;
+        &quot;If the system requests reduced motion, lamps stay lit and the page shows an animation-paused note.&lt;/p&gt;&quot;
+        &quot;&lt;h2&gt;Sourced playback (%d)&lt;/h2&gt;&lt;table class=\&quot;grid\&quot;&gt;&lt;tr&gt;&lt;th&gt;Asset&lt;/th&gt;&lt;th&gt;Timing source&lt;/th&gt;&lt;th&gt;Playback&lt;/th&gt;&lt;/tr&gt;%s&lt;/table&gt;&quot;
+        &quot;&lt;h2&gt;No playback (%d)&lt;/h2&gt;&lt;table class=\&quot;grid\&quot;&gt;&lt;tr&gt;&lt;th&gt;Asset&lt;/th&gt;&lt;th&gt;Timing source&lt;/th&gt;&lt;th&gt;Why&lt;/th&gt;&lt;/tr&gt;%s&lt;/table&gt;&quot; % (
+            len(play_rows), &quot;&quot;.join(play_rows), len(hold_rows), &quot;&quot;.join(hold_rows)),
     )
 
     # ---- licences

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>wiki/animate.py | Street Wiki</title><link rel="stylesheet" href="../../../assets/wiki.css"/></head>
+<body><header><a class="brand" href="../../../index.html">Street Wiki</a>
+<nav><a href="../../../cat/signs.html">Signs</a><a href="../../../cat/markings.html">Road markings</a><a href="../../../cat/furniture.html">Street furniture (2D)</a><a href="../../../cat/matrix.html">Matrix glyphs and pictograms</a><a href="../../../cat/artdraft.html">Art drafts (batches 10-12)</a><a href="../../../cat/furniture3d.html">3D street furniture</a><a href="../../../all-signs.html">All signs</a><a href="../../../az.html">A-Z / search</a><a href="../../../licences.html">Licences</a><a href="../../index.html">Code</a></nav></header>
+<main><div class="crumbs"><a href="../../../index.html">Home</a> / <a href="../../index.html">Code</a></div>
+<h1><code>wiki/animate.py</code></h1><p><a href="../../src/wiki/animate.py">raw file</a></p><pre class="src">&quot;&quot;&quot;Classify animated items and emit sourced SVG/CSS playback.
+
+Timing is taken only from atlas records (never invented). A range is
+played at its lower end and the range is quoted on the page. Items that
+look animated in life but have no rate in the atlas get an UNVERIFIED
+badge and no playback.
+&quot;&quot;&quot;
+from __future__ import annotations
+import json, os, re
+
+# Lower end of the sourced Sch 15 Pt 4 range. The page must quote the range.
+PLAY_PER_MIN = 60
+# Period of one flash (on+off) at the play rate, in seconds.
+PERIOD_S = 60.0 / PLAY_PER_MIN
+
+# Families / ids that are animated in use, even if the atlas has no rate.
+ANIMATED_SIGN_FAMILIES = {&quot;SignalHead&quot;, &quot;MatrixMS4&quot;}
+ANIMATED_SIGN_IDS = {&quot;3014&quot;, &quot;BELISHA&quot;, &quot;4007&quot;, &quot;XING_PAR&quot;, &quot;MS4&quot;}
+ANIMATED_FURNITURE_IDS = {
+    &quot;lane-signal&quot;, &quot;verge-ms&quot;, &quot;vms-text&quot;, &quot;vms-pictogram&quot;, &quot;belisha&quot;,
+}
+# Pedestrian signal heads that change aspect (not instruction plates).
+ANIMATED_ID_PREFIXES = (&quot;3000&quot;, &quot;3001&quot;, &quot;3013&quot;, &quot;3014&quot;, &quot;4002&quot;, &quot;4003&quot;)
+
+
+def _is_animated_sign(it):
+    i = it.get(&quot;id&quot;) or &quot;&quot;
+    if i in ANIMATED_SIGN_IDS or it.get(&quot;sub&quot;) in ANIMATED_SIGN_FAMILIES:
+        return True
+    if it.get(&quot;cat&quot;) == &quot;signs&quot; and any(i == p or i.startswith(p + &quot;.&quot;) or i.startswith(p + &quot;-&quot;) for p in ANIMATED_ID_PREFIXES):
+        return True
+    name = (it.get(&quot;name&quot;) or &quot;&quot;) + &quot; &quot; + (it.get(&quot;what&quot;) or &quot;&quot;)
+    if re.search(r&quot;\b(flash|wig-?wag|belisha)\b&quot;, name, re.I):
+        return True
+    return False
+
+
+def load_furniture_timing(atlas):
+    &quot;&quot;&quot;Read flash-timing citations already recorded in furniture.json.&quot;&quot;&quot;
+    path = os.path.join(atlas, &quot;countries/uk/furniture.json&quot;)
+    data = json.load(open(path, encoding=&quot;utf-8&quot;))
+    items = data if isinstance(data, list) else list(data.values())
+    out = {}
+    for rec in items:
+        rid = rec.get(&quot;id&quot;)
+        if not rid:
+            continue
+        blob = json.dumps(rec)
+        info = {}
+        # Explicit 60-90 range and alternating pairs (AMI / Sch 15 Pt 4).
+        m = re.search(r&quot;Sch 15 Pt 4 \(60-90 per minute, pairs alternate\)&quot;, blob)
+        if m:
+            info[&quot;range&quot;] = (60, 90)
+            info[&quot;pairs_alternate&quot;] = True
+            info[&quot;part&quot;] = &quot;TSRGD 2016 Sch 15 Pt 4 (60-90 flashes/min, pairs alternate)&quot;
+        # Verified para 3 citation (post-mounted flashing lamps).
+        srcs = rec.get(&quot;sources_needed&quot;) or rec.get(&quot;sources&quot;) or []
+        if isinstance(srcs, str):
+            srcs = [srcs]
+        for s in srcs:
+            if re.search(r&quot;Sch 15 Pts?\s+[0-9 and]+&quot;, s) or &quot;Sch 15 Pt 4&quot; in s:
+                info.setdefault(&quot;sources&quot;, []).append(s)
+                if &quot;verified&quot; in s.lower():
+                    info[&quot;verified&quot;] = True
+        todo = rec.get(&quot;todo&quot;) or &quot;&quot;
+        if &quot;Sch 15 Pt 4&quot; in todo and &quot;sources&quot; not in info:
+            info.setdefault(&quot;notes&quot;, []).append(todo)
+        if info:
+            info[&quot;licence_note&quot;] = rec.get(&quot;licence&quot;) or rec.get(&quot;license&quot;)
+            out[rid] = info
+    return out
+
+
+def classify(it, furniture_timing):
+    &quot;&quot;&quot;Return animation metadata or None if the item is not an animated type.&quot;&quot;&quot;
+    cat, i = it.get(&quot;cat&quot;), it.get(&quot;id&quot;)
+    animated = False
+    if cat == &quot;signs&quot; and _is_animated_sign(it):
+        animated = True
+    if cat == &quot;furniture&quot; and i in ANIMATED_FURNITURE_IDS:
+        animated = True
+    if cat == &quot;furniture3d&quot;:
+        return None
+    if not animated:
+        return None
+
+    rec = furniture_timing.get(i, {})
+    sourced = bool(rec.get(&quot;range&quot;) or rec.get(&quot;sources&quot;))
+    # Only play a rate when the atlas recorded one.
+    play = None
+    rng = rec.get(&quot;range&quot;)
+    if rng:
+        play = min(rng)  # lower end; never a value outside the source
+    # verge-ms cites verified Sch 15 Pt 4 para 3 at p522; the same Part
+    # records 60-90 and alternating pairs on the AMI row. Only then may
+    # verge-ms inherit the Part 4 rate, and the page must cite both.
+    if i == &quot;verge-ms&quot; and rec.get(&quot;sources&quot;) and not rng:
+        ami = furniture_timing.get(&quot;lane-signal&quot;) or {}
+        if ami.get(&quot;range&quot;):
+            rng = ami[&quot;range&quot;]
+            play = min(rng)
+            rec = dict(rec)
+            rec[&quot;range&quot;] = rng
+            rec[&quot;pairs_alternate&quot;] = True
+            rec[&quot;inherited_from&quot;] = &quot;lane-signal Sch 15 Pt 4 rate (same Part, printed p522)&quot;
+            sourced = True
+
+    if not sourced or not play:
+        return {
+            &quot;id&quot;: i,
+            &quot;sourced&quot;: False,
+            &quot;play&quot;: False,
+            &quot;badge&quot;: &quot;UNVERIFIED&quot;,
+            &quot;reason&quot;: &quot;Animated in use, but no flash rate is recorded in the atlas data. No playback is shown, so a rate is not invented.&quot;,
+            &quot;source&quot;: None,
+        }
+
+    sources = list(rec.get(&quot;sources&quot;) or [])
+    if rec.get(&quot;part&quot;) and rec[&quot;part&quot;] not in sources:
+        sources.insert(0, rec[&quot;part&quot;])
+    if rec.get(&quot;inherited_from&quot;):
+        sources.append(&quot;Rate quoted from &quot; + rec[&quot;inherited_from&quot;])
+    return {
+        &quot;id&quot;: i,
+        &quot;sourced&quot;: True,
+        &quot;play&quot;: True,
+        &quot;badge&quot;: None,
+        &quot;range&quot;: rng,
+        &quot;play_per_min&quot;: play,
+        &quot;period_s&quot;: 60.0 / play,
+        &quot;pairs_alternate&quot;: bool(rec.get(&quot;pairs_alternate&quot;)),
+        &quot;source&quot;: &quot;; &quot;.join(sources),
+        &quot;reason&quot;: &quot;Sourced atlas timing&quot;,
+        &quot;verified&quot;: bool(rec.get(&quot;verified&quot;)),
+    }
+
+
+def lamp_pair_svg(meta):
+    &quot;&quot;&quot;Deterministic SVG of two lamps. Period comes from meta[&#x27;period_s&#x27;].&quot;&quot;&quot;
+    period = meta[&quot;period_s&quot;]
+    half = period / 2.0
+    alt = meta.get(&quot;pairs_alternate&quot;, True)
+    # Amber lamps, as the atlas describes flashing amber or red lamps on AMI.
+    on = &quot;#F5D000&quot;
+    off = &quot;#2A2A28&quot;
+    delay_b = half if alt else 0.0
+    return f&#x27;&#x27;&#x27;&lt;svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 240 90&quot; width=&quot;240&quot; height=&quot;90&quot; role=&quot;img&quot; class=&quot;anim-svg&quot;&gt;
+&lt;title&gt;Lamp-pair playback&lt;/title&gt;
+&lt;style&gt;
+.anim-svg .lamp {{ stroke:#141414; stroke-width:2; }}
+.anim-svg .a {{ fill:{on}; animation:sw-flash {period:.4f}s steps(1,end) infinite; }}
+.anim-svg .b {{ fill:{on}; animation:sw-flash {period:.4f}s steps(1,end) infinite; animation-delay:{delay_b:.4f}s; }}
+@keyframes sw-flash {{
+  0%,49.9% {{ fill:{on}; }}
+  50%,100% {{ fill:{off}; }}
+}}
+@media (prefers-reduced-motion: reduce) {{
+  .anim-svg .a, .anim-svg .b {{ animation: none; fill:{on}; }}
+}}
+&lt;/style&gt;
+&lt;rect x=&quot;1&quot; y=&quot;1&quot; width=&quot;238&quot; height=&quot;88&quot; rx=&quot;8&quot; fill=&quot;#1a1a1c&quot; stroke=&quot;#6E6C66&quot; stroke-width=&quot;2&quot;/&gt;
+&lt;circle class=&quot;lamp a&quot; cx=&quot;80&quot; cy=&quot;45&quot; r=&quot;22&quot;/&gt;
+&lt;circle class=&quot;lamp b&quot; cx=&quot;160&quot; cy=&quot;45&quot; r=&quot;22&quot;/&gt;
+&lt;/svg&gt;
+&#x27;&#x27;&#x27;
+
+
+def caption(meta):
+    if not meta.get(&quot;play&quot;):
+        return meta[&quot;reason&quot;]
+    lo, hi = meta[&quot;range&quot;]
+    parts = [
+        &quot;Playback at %d flashes/min, the lower end of the sourced range %d–%d flashes/min.&quot;
+        % (meta[&quot;play_per_min&quot;], lo, hi)
+    ]
+    if meta.get(&quot;pairs_alternate&quot;):
+        parts.append(&quot;Pairs alternate.&quot;)
+    parts.append(&quot;Source: %s.&quot; % meta[&quot;source&quot;])
+    parts.append(&quot;If the system requests reduced motion, the lamps stay lit and the animation is paused.&quot;)
+    return &quot; &quot;.join(parts)
+</pre>
+</main><footer><p class="attr">Street Wiki &copy; 2026 AI-tainment (<a href="https://github.com/AI-tainment">https://github.com/AI-tainment</a>), licensed under <a rel="license" href="https://creativecommons.org/licenses/by-nd/4.0/">CC BY-ND 4.0</a> (https://creativecommons.org/licenses/by-nd/4.0/). Full text: <a href="../../../LICENCE">LICENCE</a>. Third-party parts keep their own licences (<a href="../../../licences.html">Licences</a>).</p>Generated by <a href="../../index.html">wiki/build.py</a> from local sources. Contains public sector information licensed under the Open Government Licence v3.0. See <a href="../../../licences.html">Licences</a>.</footer>
+</body></html>

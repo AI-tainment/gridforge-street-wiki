@@ -1,5 +1,5 @@
-(a) twice-regen: diff -r exit 0; manifest sha256 run1 0cda85cae4a30b5cb203ba8dcb9f7a9bf8f3667acc5c330a1f521b3735d6b81c run2 0cda85cae4a30b5cb203ba8dcb9f7a9bf8f3667acc5c330a1f521b3735d6b81c; files 1557 -> IDENTICAL
-    committed site manifest sha256 0cda85cae4a30b5cb203ba8dcb9f7a9bf8f3667acc5c330a1f521b3735d6b81c -> IDENTICAL
+(a) twice-regen: diff -r exit 0; manifest sha256 run1 7b9783ce0ba272e6d930d6c06e0dc1e78f6aaa9af253a60813736be38428dfdd run2 7b9783ce0ba272e6d930d6c06e0dc1e78f6aaa9af253a60813736be38428dfdd; files 1557 -> IDENTICAL
+    committed site manifest sha256 7b9783ce0ba272e6d930d6c06e0dc1e78f6aaa9af253a60813736be38428dfdd -> IDENTICAL
 (b) link check: 15127 internal href/src checked, 0 broken
     fonts: 0 font files / @font-face / web-font refs []
     EPS attribution: 164 EPS face(s) published, 0 without Crown copyright + OGL v3.0 []
@@ -17,7 +17,7 @@
     markings                                 25       25  OK
     matrix                                  165      165  OK
     signs                                   390      390  OK
-    signs drawn (glyph=true)                236      236  OK
-    signs placeholder (glyph=false)         154      154  OK
+    signs drawn (glyph=true)                253      253  OK
+    signs placeholder (glyph=false)         137      137  OK
     TOTAL item pages                        658      658  OK
 RESULT: PASS

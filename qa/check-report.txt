@@ -1,6 +1,6 @@
     sanitise unit: OK
-(a) twice-regen: diff -r exit 0; manifest sha256 run1 d92c679acace50b084c478427acde9524652d76148dd7ca843abb9b2faf10718 run2 d92c679acace50b084c478427acde9524652d76148dd7ca843abb9b2faf10718; files 1609 -> IDENTICAL
-    committed site manifest sha256 d92c679acace50b084c478427acde9524652d76148dd7ca843abb9b2faf10718 -> IDENTICAL
+(a) twice-regen: diff -r exit 0; manifest sha256 run1 15fc683fa10ddcc4f6ce73637befcd66c47e32608314310dd9e9bf5b02144d7a run2 15fc683fa10ddcc4f6ce73637befcd66c47e32608314310dd9e9bf5b02144d7a; files 1609 -> IDENTICAL
+    committed site manifest sha256 15fc683fa10ddcc4f6ce73637befcd66c47e32608314310dd9e9bf5b02144d7a -> IDENTICAL
 (b) link check: 16902 internal href/src checked, 0 broken
     fonts: 0 font files / @font-face / web-font refs []
     EPS attribution: 164 EPS face(s) published, 0 without Crown copyright + OGL v3.0 []

@@ -456,9 +456,13 @@ def main(argv=None):
         meta = it[&quot;anim&quot;]
         src = meta.get(&quot;source&quot;) or &quot;none in atlas&quot;
         if meta.get(&quot;play&quot;):
+            lo, hi = meta[&quot;range&quot;]
+            if meta.get(&quot;play_choice&quot;) == &quot;midpoint&quot;:
+                how = &quot;played at %d/min, midpoint of %d–%d&quot; % (meta[&quot;play_per_min&quot;], lo, hi)
+            else:
+                how = &quot;played at %d/min, lower end of %d–%d&quot; % (meta[&quot;play_per_min&quot;], lo, hi)
             play_rows.append(&quot;&lt;tr&gt;&lt;td&gt;&lt;a href=\&quot;%s\&quot;&gt;%s&lt;/a&gt;&lt;/td&gt;&lt;td&gt;%s&lt;/td&gt;&lt;td&gt;%s&lt;/td&gt;&lt;/tr&gt;&quot; % (
-                link, E_(it[&quot;id&quot;]), E_(src), E_(&quot;played at %d/min, lower end of %d–%d&quot; % (
-                    meta[&quot;play_per_min&quot;], meta[&quot;range&quot;][0], meta[&quot;range&quot;][1]))))
+                link, E_(it[&quot;id&quot;]), E_(src), E_(how)))
         else:
             hold_rows.append(&quot;&lt;tr&gt;&lt;td&gt;&lt;a href=\&quot;%s\&quot;&gt;%s&lt;/a&gt;&lt;/td&gt;&lt;td&gt;%s&lt;/td&gt;&lt;td&gt;%s&lt;/td&gt;&lt;/tr&gt;&quot; % (
                 link, E_(it[&quot;id&quot;]), E_(src), E_(meta.get(&quot;reason&quot;) or &quot;no playback&quot;)))
@@ -466,8 +470,8 @@ def main(argv=None):
         &quot;animation-coverage.html&quot;,
         &quot;Animated sign coverage&quot;,
         &quot;&lt;h1&gt;Animated sign coverage&lt;/h1&gt;&quot;
-        &quot;&lt;p&gt;Playback is built as SVG and CSS by the generator. A rate is shown only when the atlas already records one; &quot;
-        &quot;a sourced range is played at its lower end and the range is quoted. Items without a sourced rate get an UNVERIFIED badge and no playback, so a rate is not invented. &quot;
+        &quot;&lt;p&gt;Playback is built as SVG and CSS by the generator. A rate is shown only when the governing regulation or the atlas already records one; &quot;
+        &quot;a sourced range is played at its lower end, or at the midpoint when the caption says so, and the range is quoted. Items without a sourced rate get an UNVERIFIED badge and no playback, so a rate is not invented. &quot;
         &quot;If the system requests reduced motion, lamps stay lit and the page shows an animation-paused note.&lt;/p&gt;&quot;
         &quot;&lt;h2&gt;Sourced playback (%d)&lt;/h2&gt;&lt;table class=\&quot;grid\&quot;&gt;&lt;tr&gt;&lt;th&gt;Asset&lt;/th&gt;&lt;th&gt;Timing source&lt;/th&gt;&lt;th&gt;Playback&lt;/th&gt;&lt;/tr&gt;%s&lt;/table&gt;&quot;
         &quot;&lt;h2&gt;No playback (%d)&lt;/h2&gt;&lt;table class=\&quot;grid\&quot;&gt;&lt;tr&gt;&lt;th&gt;Asset&lt;/th&gt;&lt;th&gt;Timing source&lt;/th&gt;&lt;th&gt;Why&lt;/th&gt;&lt;/tr&gt;%s&lt;/table&gt;&quot; % (

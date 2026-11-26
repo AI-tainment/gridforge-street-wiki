@@ -2,8 +2,8 @@
 <title>Lamp-pair playback</title>
 <style>
 .anim-svg .lamp { stroke:#141414; stroke-width:2; }
-.anim-svg .a { fill:#F5D000; animation:sw-flash 1.0000s steps(1,end) infinite; }
-.anim-svg .b { fill:#F5D000; animation:sw-flash 1.0000s steps(1,end) infinite; animation-delay:0.5000s; }
+.anim-svg .a { fill:#F5D000; animation:sw-flash 0.8000s steps(1,end) infinite; }
+.anim-svg .b { fill:#F5D000; animation:sw-flash 0.8000s steps(1,end) infinite; animation-delay:0.4000s; }
 @keyframes sw-flash {
   0%,49.9% { fill:#F5D000; }
   50%,100% { fill:#2A2A28; }

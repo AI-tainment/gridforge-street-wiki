@@ -1,9 +1,11 @@
 """Classify animated items and emit sourced SVG/CSS playback.
 
-Timing is taken only from atlas records (never invented). A range is
-played at its lower end and the range is quoted on the page. Items that
-look animated in life but have no rate in the atlas get an UNVERIFIED
-badge and no playback.
+Timing is taken from the governing regulation or from atlas records
+(never invented). A range recorded only in the atlas is played at its
+lower end. A range taken from the regulation for verge-ms is played at
+the midpoint of that range. The page quotes the range and the choice.
+Items that look animated in life but have no sourced rate get an
+UNVERIFIED badge and no playback.
 """
 from __future__ import annotations
 import json, os, re
@@ -91,19 +93,31 @@ def classify(it, furniture_timing):
     rng = rec.get("range")
     if rng:
         play = min(rng)  # lower end; never a value outside the source
-    # verge-ms cites verified Sch 15 Pt 4 para 3 at p522; the same Part
-    # records 60-90 and alternating pairs on the AMI row. Only then may
-    # verge-ms inherit the Part 4 rate, and the page must cite both.
-    if i == "verge-ms" and rec.get("sources") and not rng:
-        ami = furniture_timing.get("lane-signal") or {}
-        if ami.get("range"):
-            rng = ami["range"]
-            play = min(rng)
-            rec = dict(rec)
-            rec["range"] = rng
-            rec["pairs_alternate"] = True
-            rec["inherited_from"] = "lane-signal Sch 15 Pt 4 rate (same Part, printed p522)"
-            sourced = True
+    # Post-mounted verge message signs: cite Sch 15 Pt 4 para 3 directly
+    # (item 12, diagram 6022, lamps on a post). Do not inherit the AMI
+    # / gantry rate from para 2. The regulation gives a range; play the
+    # midpoint and say so in the caption.
+    if i == "verge-ms":
+        lo, hi = 60, 90
+        play = (lo + hi) // 2
+        return {
+            "id": i,
+            "sourced": True,
+            "play": True,
+            "badge": None,
+            "range": (lo, hi),
+            "play_per_min": play,
+            "period_s": 60.0 / play,
+            "pairs_alternate": True,
+            "play_choice": "midpoint",
+            "source": (
+                "TSRGD 2016 (SI 2016/362) Schedule 15 Part 4 paragraph 3, "
+                "printed page 522 (item 12, diagram 6022, flashing amber "
+                "lamps for display on a post)"
+            ),
+            "reason": "Sourced from the governing regulation",
+            "verified": True,
+        }
 
     if not sourced or not play:
         return {
@@ -169,10 +183,18 @@ def caption(meta):
     if not meta.get("play"):
         return meta["reason"]
     lo, hi = meta["range"]
-    parts = [
-        "Playback at %d flashes/min, the lower end of the sourced range %d–%d flashes/min."
-        % (meta["play_per_min"], lo, hi)
-    ]
+    play = meta["play_per_min"]
+    if meta.get("play_choice") == "midpoint":
+        rate = (
+            "Playback at %d flashes/min, the midpoint of the sourced range %d–%d flashes/min."
+            % (play, lo, hi)
+        )
+    else:
+        rate = (
+            "Playback at %d flashes/min, the lower end of the sourced range %d–%d flashes/min."
+            % (play, lo, hi)
+        )
+    parts = [rate]
     if meta.get("pairs_alternate"):
         parts.append("Pairs alternate.")
     parts.append("Source: %s." % meta["source"])

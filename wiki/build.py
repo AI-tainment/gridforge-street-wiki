@@ -450,9 +450,13 @@ def main(argv=None):
         meta = it["anim"]
         src = meta.get("source") or "none in atlas"
         if meta.get("play"):
+            lo, hi = meta["range"]
+            if meta.get("play_choice") == "midpoint":
+                how = "played at %d/min, midpoint of %d–%d" % (meta["play_per_min"], lo, hi)
+            else:
+                how = "played at %d/min, lower end of %d–%d" % (meta["play_per_min"], lo, hi)
             play_rows.append("<tr><td><a href=\"%s\">%s</a></td><td>%s</td><td>%s</td></tr>" % (
-                link, E_(it["id"]), E_(src), E_("played at %d/min, lower end of %d–%d" % (
-                    meta["play_per_min"], meta["range"][0], meta["range"][1]))))
+                link, E_(it["id"]), E_(src), E_(how)))
         else:
             hold_rows.append("<tr><td><a href=\"%s\">%s</a></td><td>%s</td><td>%s</td></tr>" % (
                 link, E_(it["id"]), E_(src), E_(meta.get("reason") or "no playback")))
@@ -460,8 +464,8 @@ def main(argv=None):
         "animation-coverage.html",
         "Animated sign coverage",
         "<h1>Animated sign coverage</h1>"
-        "<p>Playback is built as SVG and CSS by the generator. A rate is shown only when the atlas already records one; "
-        "a sourced range is played at its lower end and the range is quoted. Items without a sourced rate get an UNVERIFIED badge and no playback, so a rate is not invented. "
+        "<p>Playback is built as SVG and CSS by the generator. A rate is shown only when the governing regulation or the atlas already records one; "
+        "a sourced range is played at its lower end, or at the midpoint when the caption says so, and the range is quoted. Items without a sourced rate get an UNVERIFIED badge and no playback, so a rate is not invented. "
         "If the system requests reduced motion, lamps stay lit and the page shows an animation-paused note.</p>"
         "<h2>Sourced playback (%d)</h2><table class=\"grid\"><tr><th>Asset</th><th>Timing source</th><th>Playback</th></tr>%s</table>"
         "<h2>No playback (%d)</h2><table class=\"grid\"><tr><th>Asset</th><th>Timing source</th><th>Why</th></tr>%s</table>" % (

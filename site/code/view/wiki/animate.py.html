@@ -6,10 +6,12 @@
 <main><div class="crumbs"><a href="../../../index.html">Home</a> / <a href="../../index.html">Code</a></div>
 <h1><code>wiki/animate.py</code></h1><p><a href="../../src/wiki/animate.py">raw file</a></p><pre class="src">&quot;&quot;&quot;Classify animated items and emit sourced SVG/CSS playback.
 
-Timing is taken only from atlas records (never invented). A range is
-played at its lower end and the range is quoted on the page. Items that
-look animated in life but have no rate in the atlas get an UNVERIFIED
-badge and no playback.
+Timing is taken from the governing regulation or from atlas records
+(never invented). A range recorded only in the atlas is played at its
+lower end. A range taken from the regulation for verge-ms is played at
+the midpoint of that range. The page quotes the range and the choice.
+Items that look animated in life but have no sourced rate get an
+UNVERIFIED badge and no playback.
 &quot;&quot;&quot;
 from __future__ import annotations
 import json, os, re
@@ -97,19 +99,31 @@ def classify(it, furniture_timing):
     rng = rec.get(&quot;range&quot;)
     if rng:
         play = min(rng)  # lower end; never a value outside the source
-    # verge-ms cites verified Sch 15 Pt 4 para 3 at p522; the same Part
-    # records 60-90 and alternating pairs on the AMI row. Only then may
-    # verge-ms inherit the Part 4 rate, and the page must cite both.
-    if i == &quot;verge-ms&quot; and rec.get(&quot;sources&quot;) and not rng:
-        ami = furniture_timing.get(&quot;lane-signal&quot;) or {}
-        if ami.get(&quot;range&quot;):
-            rng = ami[&quot;range&quot;]
-            play = min(rng)
-            rec = dict(rec)
-            rec[&quot;range&quot;] = rng
-            rec[&quot;pairs_alternate&quot;] = True
-            rec[&quot;inherited_from&quot;] = &quot;lane-signal Sch 15 Pt 4 rate (same Part, printed p522)&quot;
-            sourced = True
+    # Post-mounted verge message signs: cite Sch 15 Pt 4 para 3 directly
+    # (item 12, diagram 6022, lamps on a post). Do not inherit the AMI
+    # / gantry rate from para 2. The regulation gives a range; play the
+    # midpoint and say so in the caption.
+    if i == &quot;verge-ms&quot;:
+        lo, hi = 60, 90
+        play = (lo + hi) // 2
+        return {
+            &quot;id&quot;: i,
+            &quot;sourced&quot;: True,
+            &quot;play&quot;: True,
+            &quot;badge&quot;: None,
+            &quot;range&quot;: (lo, hi),
+            &quot;play_per_min&quot;: play,
+            &quot;period_s&quot;: 60.0 / play,
+            &quot;pairs_alternate&quot;: True,
+            &quot;play_choice&quot;: &quot;midpoint&quot;,
+            &quot;source&quot;: (
+                &quot;TSRGD 2016 (SI 2016/362) Schedule 15 Part 4 paragraph 3, &quot;
+                &quot;printed page 522 (item 12, diagram 6022, flashing amber &quot;
+                &quot;lamps for display on a post)&quot;
+            ),
+            &quot;reason&quot;: &quot;Sourced from the governing regulation&quot;,
+            &quot;verified&quot;: True,
+        }
 
     if not sourced or not play:
         return {
@@ -175,10 +189,18 @@ def caption(meta):
     if not meta.get(&quot;play&quot;):
         return meta[&quot;reason&quot;]
     lo, hi = meta[&quot;range&quot;]
-    parts = [
-        &quot;Playback at %d flashes/min, the lower end of the sourced range %d–%d flashes/min.&quot;
-        % (meta[&quot;play_per_min&quot;], lo, hi)
-    ]
+    play = meta[&quot;play_per_min&quot;]
+    if meta.get(&quot;play_choice&quot;) == &quot;midpoint&quot;:
+        rate = (
+            &quot;Playback at %d flashes/min, the midpoint of the sourced range %d–%d flashes/min.&quot;
+            % (play, lo, hi)
+        )
+    else:
+        rate = (
+            &quot;Playback at %d flashes/min, the lower end of the sourced range %d–%d flashes/min.&quot;
+            % (play, lo, hi)
+        )
+    parts = [rate]
     if meta.get(&quot;pairs_alternate&quot;):
         parts.append(&quot;Pairs alternate.&quot;)
     parts.append(&quot;Source: %s.&quot; % meta[&quot;source&quot;])

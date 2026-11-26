@@ -1,14 +1,14 @@
 # Animated sign coverage
 
-Playback is SVG/CSS built by the wiki generator. A rate is shown only when the atlas already records one.
-A sourced range is played at its lower end and the range is quoted. Items without a sourced rate get an UNVERIFIED badge and no playback.
+Playback is SVG/CSS built by the wiki generator. A rate is shown only when the governing regulation or the atlas already records one.
+A sourced range is played at its lower end, or at the midpoint when the caption says so, and the range is quoted. Items without a sourced rate get an UNVERIFIED badge and no playback.
 
 ## Sourced playback (2)
 
 | Asset | Timing source | Playback |
 | --- | --- | --- |
 | lane-signal | TSRGD 2016 Sch 15 Pt 4 (60-90 flashes/min, pairs alternate); TSRGD 2016 Sch 15 Pts 2 and 4 (printed p509-522, verified) | played at 60/min, lower end of 60–90 |
-| verge-ms | TSRGD 2016 Sch 15 Pt 4 para 3 (printed p522, verified); Rate quoted from lane-signal Sch 15 Pt 4 rate (same Part, printed p522) | played at 60/min, lower end of 60–90 |
+| verge-ms | TSRGD 2016 (SI 2016/362) Schedule 15 Part 4 paragraph 3, printed page 522 (item 12, diagram 6022, flashing amber lamps for display on a post) | played at 75/min, midpoint of 60–90 |
 
 ## No playback (29)
 

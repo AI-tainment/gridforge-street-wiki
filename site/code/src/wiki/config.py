@@ -2,7 +2,7 @@
 
 Source paths are resolved in this order (first wins):
   1. command-line flags (--atlas, --matrix, ...)
-  2. environment variables (GFWIKI_ATLAS, GFWIKI_MATRIX, ...)
+  2. environment variables (STREETWIKI_ATLAS, STREETWIKI_MATRIX, ...)
   3. wiki/local_config.json (gitignored; copy wiki/local_config.json.example)
   4. the relative placeholder defaults below (relative to the repo root)
 All sources are read-only. Missing sources stop the build with a clear message.
@@ -17,15 +17,15 @@ SOURCES = {
     "atlas": ("sources/signage-atlas", "Signage Atlas checkout"),
     "matrix": ("sources/signage-atlas-art/kit/street_furniture/sign/matrix", "Art's matrix glyph grids"),
     "art_placeholders": ("sources/signage-atlas-art/placeholders", "Art's batches 10-12"),
-    "kit020": ("sources/gridforge-art/020/gf.module.bus_stop_ref.gfkit", "Spec 020 bus stop kit (.gfkit)"),
-    "kit020_dir": ("sources/gridforge-art/020", "Spec 020 kit folder"),
+    "kit020": ("sources/art-kit/020/gf.module.bus_stop_ref.gfkit", "Spec 020 bus stop kit (.gfkit)"),
+    "kit020_dir": ("sources/art-kit/020", "Spec 020 kit folder"),
     "look": ("sources/signage-atlas-art/kit/street_furniture/bus_stop/look", "Art's look pack"),
 }
 DEFAULTS = {k: v[0] for k, v in SOURCES.items()}
 
 
 def env_name(key):
-    return "GFWIKI_" + key.upper()
+    return "STREETWIKI_" + key.upper()
 
 
 def resolve(overrides=None):

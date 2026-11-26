@@ -8,7 +8,8 @@
 (b) link check: every internal href/src in every HTML file resolves to a file;
 (c) item counts, taken from the sources independently of wiki/loaders.py,
     must equal the generated item pages (printed as a table).
-Plus: no font files / @font-face / web-font hosts, no absolute or file: links.
+Plus: no font files / @font-face / web-font hosts, no absolute or file: links,
+no former-engine mark in site/ or tracked files (see tests/standalone-allow.txt).
 Exit code 0 only if every check passes.
 """
 import hashlib, json, os, re, subprocess, sys, tempfile, zipfile
@@ -19,6 +20,7 @@ sys.dont_write_bytecode = True
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "wiki"))
 import config  # paths only
+import sanitise
 D = config.resolve()
 
 
@@ -111,12 +113,91 @@ def site_counts(site):
     return c, stat
 
 
+def check_sanitise():
+    """Unit cases for the single build-time rewrite of a former engine name."""
+    mark = "Grid" + "Forge"
+    cases = [
+        (mark + " Street Wiki", sanitise.SITE_NAME),
+        ("in the " + mark + " sources", "in the project sources"),
+        ("CC0-1.0 (" + mark + " original)", "CC0-1.0 (original)"),
+        ("CC0-1.0. " + mark + " original placeholder geometry (Spec 020 reference).",
+         "CC0-1.0. original placeholder geometry (Spec 020 reference)."),
+        ("Evidence: " + mark.lower() + "-reviews/foo.md", "Evidence: reviews/foo.md"),
+        ("Copied from " + mark + " docs", "Copied from the project docs"),
+        ("like " + mark + "'s cooker", "like the project's cooker"),
+        ("silhouettes for " + mark + ".", "silhouettes for the project."),
+        ("vendor/" + mark.lower() + "/UkTsrgdCatalogue.cs", "vendor/catalogue/UkTsrgdCatalogue.cs"),
+        ("sources/" + mark.lower() + "-art/020", "sources/art-kit/020"),
+        ("format: " + mark.lower() + ".kit", "format: kit"),
+        (sanitise.SITE_NAME + " \u00a9 2026 AI-tainment", sanitise.SITE_NAME + " \u00a9 2026 AI-tainment"),
+    ]
+    failures = []
+    for src, want in cases:
+        got = sanitise.sanitise(src)
+        if got != want or sanitise.still_marked(got):
+            failures.append((src, want, got))
+    return failures
+
+
+def load_standalone_allow():
+    path = os.path.join(REPO, "tests", "standalone-allow.txt")
+    allow = {}
+    if not os.path.isfile(path):
+        return allow, path
+    for line in open(path, encoding="utf-8"):
+        raw = line.strip()
+        if not raw or raw.startswith("#"):
+            continue
+        if "#" in raw:
+            phrase, reason = raw.split("#", 1)
+        else:
+            phrase, reason = raw, "listed"
+        phrase = phrase.strip()
+        if phrase:
+            allow[phrase.lower()] = reason.strip()
+    return allow, path
+
+
+def scan_standalone_mark(site):
+    """Fail if the former engine mark appears in site/ or tracked files."""
+    needle = "grid" + "forge"
+    pat = re.compile(needle, re.I)
+    allow, allow_path = load_standalone_allow()
+    hits = []
+    tracked = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True).stdout.split("\n")
+    paths = [os.path.join(REPO, f) for f in tracked if f and not f.startswith("site/")]
+    for dp, dn, fn in os.walk(site):
+        paths += [os.path.join(dp, f) for f in fn]
+    allow_rel = os.path.relpath(allow_path, REPO) if os.path.isfile(allow_path) else None
+    for pth in sorted(set(paths)):
+        if not os.path.isfile(pth):
+            continue
+        rel = os.path.relpath(pth, REPO)
+        if allow_rel and rel == allow_rel:
+            continue
+        b = open(pth, "rb").read()
+        if b"\0" in b[:8192]:
+            continue
+        text = b.decode("utf-8", "replace")
+        if pat.search(rel):
+            hits.append((pat.sub("***", rel), "path"))
+        for m in pat.finditer(text):
+            w = re.search(r"\w*$", text[:m.start()]).group(0) + m.group(0) + re.match(r"\w*", text[m.end():]).group(0)
+            if w.lower() not in allow:
+                hits.append((rel, w[:1] + "*" * (len(w) - 1)))
+    return hits, allow
+
+
 def main():
     site = os.path.join(REPO, sys.argv[sys.argv.index("--site") + 1]) if "--site" in sys.argv else os.path.join(REPO, "site")
     ok = True
     report = []
     def say(x=""):
         print(x); report.append(x)
+    sanitise_fail = check_sanitise()
+    say("    sanitise unit: %s%s" % ("OK" if not sanitise_fail else "FAIL",
+                                      "" if not sanitise_fail else " %s" % sanitise_fail[:3]))
+    ok &= not sanitise_fail
     # (a)
     with tempfile.TemporaryDirectory() as td:
         outs = []
@@ -212,6 +293,10 @@ def main():
                 hits.append((rel, w[:1] + "*" * (len(w) - 1)))  # masked so the report never repeats it
     say("    no-name: %d files scanned (site/ + tracked), %d matches %s; allow-list %s" % (len(set(paths)), len(hits), hits[:5], sorted(allow) or "empty"))
     ok &= not hits
+    mark_hits, mark_allow = scan_standalone_mark(site)
+    say("    standalone-mark: %d matches %s; allow-list %s" % (
+        len(mark_hits), mark_hits[:5], sorted(mark_allow) or "empty"))
+    ok &= not mark_hits
     # absolute machine paths (work/scratch/home) in tracked files and site/
     ppat = re.compile(r"(?<![\w.~-])/(?:" + "work" + "space|" + "tm" + "p|" + "ho" + "me" + r")(?:/|\b)")
     phits = []

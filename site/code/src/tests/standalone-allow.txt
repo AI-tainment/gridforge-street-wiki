@@ -1,0 +1,5 @@
+# Phrases that may remain in the tracked tree or generated site even if they
+# match the former-engine mark. One phrase per line; text after a # is a
+# reason. The file is empty of phrases today: the wiki must be fully free of
+# that mark. Repo and Pages names on the remotes are unchanged for now and
+# are not written into this wiki.

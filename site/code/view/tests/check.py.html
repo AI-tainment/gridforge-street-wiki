@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>tests/check.py | GridForge Street Wiki</title><link rel="stylesheet" href="../../../assets/wiki.css"/></head>
-<body><header><a class="brand" href="../../../index.html">GridForge Street Wiki</a>
-<nav><a href="../../../cat/signs.html">Signs</a><a href="../../../cat/markings.html">Road markings</a><a href="../../../cat/furniture.html">Street furniture (2D)</a><a href="../../../cat/matrix.html">Matrix glyphs and pictograms</a><a href="../../../cat/artdraft.html">Art drafts (batches 10-12)</a><a href="../../../cat/furniture3d.html">3D street furniture</a><a href="../../../az.html">A-Z / search</a><a href="../../../licences.html">Licences</a><a href="../../index.html">Code</a></nav></header>
+<title>tests/check.py | Street Wiki</title><link rel="stylesheet" href="../../../assets/wiki.css"/></head>
+<body><header><a class="brand" href="../../../index.html">Street Wiki</a>
+<nav><a href="../../../cat/signs.html">Signs</a><a href="../../../cat/markings.html">Road markings</a><a href="../../../cat/furniture.html">Street furniture (2D)</a><a href="../../../cat/matrix.html">Matrix glyphs and pictograms</a><a href="../../../cat/artdraft.html">Art drafts (batches 10-12)</a><a href="../../../cat/furniture3d.html">3D street furniture</a><a href="../../../all-signs.html">All signs</a><a href="../../../az.html">A-Z / search</a><a href="../../../licences.html">Licences</a><a href="../../index.html">Code</a></nav></header>
 <main><div class="crumbs"><a href="../../../index.html">Home</a> / <a href="../../index.html">Code</a></div>
 <h1><code>tests/check.py</code></h1><p><a href="../../src/tests/check.py">raw file</a></p><pre class="src">#!/usr/bin/env python3
 &quot;&quot;&quot;Acceptance checks for the wiki.
@@ -14,7 +14,8 @@
 (b) link check: every internal href/src in every HTML file resolves to a file;
 (c) item counts, taken from the sources independently of wiki/loaders.py,
     must equal the generated item pages (printed as a table).
-Plus: no font files / @font-face / web-font hosts, no absolute or file: links.
+Plus: no font files / @font-face / web-font hosts, no absolute or file: links,
+no former-engine mark in site/ or tracked files (see tests/standalone-allow.txt).
 Exit code 0 only if every check passes.
 &quot;&quot;&quot;
 import hashlib, json, os, re, subprocess, sys, tempfile, zipfile
@@ -25,6 +26,7 @@ sys.dont_write_bytecode = True
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, &quot;wiki&quot;))
 import config  # paths only
+import sanitise
 D = config.resolve()
 
 
@@ -117,12 +119,91 @@ def site_counts(site):
     return c, stat
 
 
+def check_sanitise():
+    &quot;&quot;&quot;Unit cases for the single build-time rewrite of a former engine name.&quot;&quot;&quot;
+    mark = &quot;Grid&quot; + &quot;Forge&quot;
+    cases = [
+        (mark + &quot; Street Wiki&quot;, sanitise.SITE_NAME),
+        (&quot;in the &quot; + mark + &quot; sources&quot;, &quot;in the project sources&quot;),
+        (&quot;CC0-1.0 (&quot; + mark + &quot; original)&quot;, &quot;CC0-1.0 (original)&quot;),
+        (&quot;CC0-1.0. &quot; + mark + &quot; original placeholder geometry (Spec 020 reference).&quot;,
+         &quot;CC0-1.0. original placeholder geometry (Spec 020 reference).&quot;),
+        (&quot;Evidence: &quot; + mark.lower() + &quot;-reviews/foo.md&quot;, &quot;Evidence: reviews/foo.md&quot;),
+        (&quot;Copied from &quot; + mark + &quot; docs&quot;, &quot;Copied from the project docs&quot;),
+        (&quot;like &quot; + mark + &quot;&#x27;s cooker&quot;, &quot;like the project&#x27;s cooker&quot;),
+        (&quot;silhouettes for &quot; + mark + &quot;.&quot;, &quot;silhouettes for the project.&quot;),
+        (&quot;vendor/&quot; + mark.lower() + &quot;/UkTsrgdCatalogue.cs&quot;, &quot;vendor/catalogue/UkTsrgdCatalogue.cs&quot;),
+        (&quot;sources/&quot; + mark.lower() + &quot;-art/020&quot;, &quot;sources/art-kit/020&quot;),
+        (&quot;format: &quot; + mark.lower() + &quot;.kit&quot;, &quot;format: kit&quot;),
+        (sanitise.SITE_NAME + &quot; \u00a9 2026 AI-tainment&quot;, sanitise.SITE_NAME + &quot; \u00a9 2026 AI-tainment&quot;),
+    ]
+    failures = []
+    for src, want in cases:
+        got = sanitise.sanitise(src)
+        if got != want or sanitise.still_marked(got):
+            failures.append((src, want, got))
+    return failures
+
+
+def load_standalone_allow():
+    path = os.path.join(REPO, &quot;tests&quot;, &quot;standalone-allow.txt&quot;)
+    allow = {}
+    if not os.path.isfile(path):
+        return allow, path
+    for line in open(path, encoding=&quot;utf-8&quot;):
+        raw = line.strip()
+        if not raw or raw.startswith(&quot;#&quot;):
+            continue
+        if &quot;#&quot; in raw:
+            phrase, reason = raw.split(&quot;#&quot;, 1)
+        else:
+            phrase, reason = raw, &quot;listed&quot;
+        phrase = phrase.strip()
+        if phrase:
+            allow[phrase.lower()] = reason.strip()
+    return allow, path
+
+
+def scan_standalone_mark(site):
+    &quot;&quot;&quot;Fail if the former engine mark appears in site/ or tracked files.&quot;&quot;&quot;
+    needle = &quot;grid&quot; + &quot;forge&quot;
+    pat = re.compile(needle, re.I)
+    allow, allow_path = load_standalone_allow()
+    hits = []
+    tracked = subprocess.run([&quot;git&quot;, &quot;ls-files&quot;], cwd=REPO, capture_output=True, text=True).stdout.split(&quot;\n&quot;)
+    paths = [os.path.join(REPO, f) for f in tracked if f and not f.startswith(&quot;site/&quot;)]
+    for dp, dn, fn in os.walk(site):
+        paths += [os.path.join(dp, f) for f in fn]
+    allow_rel = os.path.relpath(allow_path, REPO) if os.path.isfile(allow_path) else None
+    for pth in sorted(set(paths)):
+        if not os.path.isfile(pth):
+            continue
+        rel = os.path.relpath(pth, REPO)
+        if allow_rel and rel == allow_rel:
+            continue
+        b = open(pth, &quot;rb&quot;).read()
+        if b&quot;\0&quot; in b[:8192]:
+            continue
+        text = b.decode(&quot;utf-8&quot;, &quot;replace&quot;)
+        if pat.search(rel):
+            hits.append((pat.sub(&quot;***&quot;, rel), &quot;path&quot;))
+        for m in pat.finditer(text):
+            w = re.search(r&quot;\w*$&quot;, text[:m.start()]).group(0) + m.group(0) + re.match(r&quot;\w*&quot;, text[m.end():]).group(0)
+            if w.lower() not in allow:
+                hits.append((rel, w[:1] + &quot;*&quot; * (len(w) - 1)))
+    return hits, allow
+
+
 def main():
     site = os.path.join(REPO, sys.argv[sys.argv.index(&quot;--site&quot;) + 1]) if &quot;--site&quot; in sys.argv else os.path.join(REPO, &quot;site&quot;)
     ok = True
     report = []
     def say(x=&quot;&quot;):
         print(x); report.append(x)
+    sanitise_fail = check_sanitise()
+    say(&quot;    sanitise unit: %s%s&quot; % (&quot;OK&quot; if not sanitise_fail else &quot;FAIL&quot;,
+                                      &quot;&quot; if not sanitise_fail else &quot; %s&quot; % sanitise_fail[:3]))
+    ok &amp;= not sanitise_fail
     # (a)
     with tempfile.TemporaryDirectory() as td:
         outs = []
@@ -218,6 +299,10 @@ def main():
                 hits.append((rel, w[:1] + &quot;*&quot; * (len(w) - 1)))  # masked so the report never repeats it
     say(&quot;    no-name: %d files scanned (site/ + tracked), %d matches %s; allow-list %s&quot; % (len(set(paths)), len(hits), hits[:5], sorted(allow) or &quot;empty&quot;))
     ok &amp;= not hits
+    mark_hits, mark_allow = scan_standalone_mark(site)
+    say(&quot;    standalone-mark: %d matches %s; allow-list %s&quot; % (
+        len(mark_hits), mark_hits[:5], sorted(mark_allow) or &quot;empty&quot;))
+    ok &amp;= not mark_hits
     # absolute machine paths (work/scratch/home) in tracked files and site/
     ppat = re.compile(r&quot;(?&lt;![\w.~-])/(?:&quot; + &quot;work&quot; + &quot;space|&quot; + &quot;tm&quot; + &quot;p|&quot; + &quot;ho&quot; + &quot;me&quot; + r&quot;)(?:/|\b)&quot;)
     phits = []
@@ -252,5 +337,5 @@ def main():
 if __name__ == &quot;__main__&quot;:
     sys.exit(main())
 </pre>
-</main><footer><p class="attr">GridForge Street Wiki &copy; 2026 AI-tainment (<a href="https://github.com/AI-tainment">https://github.com/AI-tainment</a>), licensed under <a rel="license" href="https://creativecommons.org/licenses/by-nd/4.0/">CC BY-ND 4.0</a> (https://creativecommons.org/licenses/by-nd/4.0/). Full text: <a href="../../../LICENCE">LICENCE</a>. Third-party parts keep their own licences (<a href="../../../licences.html">Licences</a>).</p>Generated by <a href="../../index.html">wiki/build.py</a> from local sources. Contains public sector information licensed under the Open Government Licence v3.0. See <a href="../../../licences.html">Licences</a>.</footer>
+</main><footer><p class="attr">Street Wiki &copy; 2026 AI-tainment (<a href="https://github.com/AI-tainment">https://github.com/AI-tainment</a>), licensed under <a rel="license" href="https://creativecommons.org/licenses/by-nd/4.0/">CC BY-ND 4.0</a> (https://creativecommons.org/licenses/by-nd/4.0/). Full text: <a href="../../../LICENCE">LICENCE</a>. Third-party parts keep their own licences (<a href="../../../licences.html">Licences</a>).</p>Generated by <a href="../../index.html">wiki/build.py</a> from local sources. Contains public sector information licensed under the Open Government Licence v3.0. See <a href="../../../licences.html">Licences</a>.</footer>
 </body></html>

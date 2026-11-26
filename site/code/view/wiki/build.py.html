@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>wiki/build.py | GridForge Street Wiki</title><link rel="stylesheet" href="../../../assets/wiki.css"/></head>
-<body><header><a class="brand" href="../../../index.html">GridForge Street Wiki</a>
-<nav><a href="../../../cat/signs.html">Signs</a><a href="../../../cat/markings.html">Road markings</a><a href="../../../cat/furniture.html">Street furniture (2D)</a><a href="../../../cat/matrix.html">Matrix glyphs and pictograms</a><a href="../../../cat/artdraft.html">Art drafts (batches 10-12)</a><a href="../../../cat/furniture3d.html">3D street furniture</a><a href="../../../az.html">A-Z / search</a><a href="../../../licences.html">Licences</a><a href="../../index.html">Code</a></nav></header>
+<title>wiki/build.py | Street Wiki</title><link rel="stylesheet" href="../../../assets/wiki.css"/></head>
+<body><header><a class="brand" href="../../../index.html">Street Wiki</a>
+<nav><a href="../../../cat/signs.html">Signs</a><a href="../../../cat/markings.html">Road markings</a><a href="../../../cat/furniture.html">Street furniture (2D)</a><a href="../../../cat/matrix.html">Matrix glyphs and pictograms</a><a href="../../../cat/artdraft.html">Art drafts (batches 10-12)</a><a href="../../../cat/furniture3d.html">3D street furniture</a><a href="../../../all-signs.html">All signs</a><a href="../../../az.html">A-Z / search</a><a href="../../../licences.html">Licences</a><a href="../../index.html">Code</a></nav></header>
 <main><div class="crumbs"><a href="../../../index.html">Home</a> / <a href="../../index.html">Code</a></div>
 <h1><code>wiki/build.py</code></h1><p><a href="../../src/wiki/build.py">raw file</a></p><pre class="src">#!/usr/bin/env python3
-&quot;&quot;&quot;GridForge Street Wiki generator.
+&quot;&quot;&quot;Street Wiki generator.
 
     python3 wiki/build.py --out site
 
-Reads the source trees (read-only; paths from flags, GFWIKI_* env vars or
+Reads the source trees (read-only; paths from flags, STREETWIKI_* env vars or
 wiki/local_config.json, see wiki/config.py) and writes a static,
 relative-link-only site (GitHub Pages ready: index.html at the root, .nojekyll).
 Deterministic: sorted iteration, no timestamps, fixed render settings.
@@ -21,7 +21,7 @@ sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-import config, loaders, render3d, matrix_svg  # noqa: E402
+import config, loaders, render3d, matrix_svg, sanitise  # noqa: E402
 
 E_ = html.escape
 CATS = [
@@ -45,9 +45,10 @@ STATUS = {
 }
 CODE_DIRS = (&quot;wiki&quot;, &quot;tests&quot;)
 CODE_TOP = (&quot;README.md&quot;, &quot;requirements.txt&quot;, &quot;LICENCE&quot;)
-ATTRIBUTION = (&quot;GridForge Street Wiki \u00a9 2026 AI-tainment (https://github.com/AI-tainment), &quot;
+SITE_NAME = sanitise.SITE_NAME
+ATTRIBUTION = (SITE_NAME + &quot; \u00a9 2026 AI-tainment (https://github.com/AI-tainment), &quot;
                &quot;licensed under CC BY-ND 4.0 (https://creativecommons.org/licenses/by-nd/4.0/).&quot;)
-ATTR_HTML = (&#x27;GridForge Street Wiki &amp;copy; 2026 AI-tainment (&lt;a href=&quot;https://github.com/AI-tainment&quot;&gt;https://github.com/AI-tainment&lt;/a&gt;), &#x27;
+ATTR_HTML = (SITE_NAME + &#x27; &amp;copy; 2026 AI-tainment (&lt;a href=&quot;https://github.com/AI-tainment&quot;&gt;https://github.com/AI-tainment&lt;/a&gt;), &#x27;
              &#x27;licensed under &lt;a rel=&quot;license&quot; href=&quot;https://creativecommons.org/licenses/by-nd/4.0/&quot;&gt;CC BY-ND 4.0&lt;/a&gt; (https://creativecommons.org/licenses/by-nd/4.0/).&#x27;)
 SCOPE_NOTE = (&quot;The CC BY-ND 4.0 licence covers the owner&#x27;s own compilation, code and original content only. It does not relicense &quot;
               &quot;third-party parts, which stay under their own terms: OGL v3.0 for TSRGD 2016 / SI 2002 material, ODbL for OpenStreetMap &quot;
@@ -105,7 +106,7 @@ class Site:
             except UnicodeDecodeError:
                 pass
         if isinstance(data, str):
-            data = redact(data).encode(&quot;utf-8&quot;)
+            data = sanitise.sanitise(redact(data)).encode(&quot;utf-8&quot;)
         assert rel not in self.files, rel
         self.files[rel] = data
 
@@ -119,9 +120,9 @@ class Site:
                         [&#x27;&lt;a href=&quot;%s&quot;&gt;%s&lt;/a&gt;&#x27; % (L(p), E_(t)) for p, t in crumbs])
         doc = f&quot;&quot;&quot;&lt;!DOCTYPE html&gt;
 &lt;html lang=&quot;en&quot;&gt;&lt;head&gt;&lt;meta charset=&quot;utf-8&quot;/&gt;&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;/&gt;
-&lt;title&gt;{E_(title)} | GridForge Street Wiki&lt;/title&gt;&lt;link rel=&quot;stylesheet&quot; href=&quot;{L(&#x27;assets/wiki.css&#x27;)}&quot;/&gt;&lt;/head&gt;
-&lt;body&gt;&lt;header&gt;&lt;a class=&quot;brand&quot; href=&quot;{L(&#x27;index.html&#x27;)}&quot;&gt;GridForge Street Wiki&lt;/a&gt;
-&lt;nav&gt;{nav}&lt;a href=&quot;{L(&#x27;az.html&#x27;)}&quot;&gt;A-Z / search&lt;/a&gt;&lt;a href=&quot;{L(&#x27;licences.html&#x27;)}&quot;&gt;Licences&lt;/a&gt;&lt;a href=&quot;{L(&#x27;code/index.html&#x27;)}&quot;&gt;Code&lt;/a&gt;&lt;/nav&gt;&lt;/header&gt;
+&lt;title&gt;{E_(title)} | {E_(SITE_NAME)}&lt;/title&gt;&lt;link rel=&quot;stylesheet&quot; href=&quot;{L(&#x27;assets/wiki.css&#x27;)}&quot;/&gt;&lt;/head&gt;
+&lt;body&gt;&lt;header&gt;&lt;a class=&quot;brand&quot; href=&quot;{L(&#x27;index.html&#x27;)}&quot;&gt;{E_(SITE_NAME)}&lt;/a&gt;
+&lt;nav&gt;{nav}&lt;a href=&quot;{L(&#x27;all-signs.html&#x27;)}&quot;&gt;All signs&lt;/a&gt;&lt;a href=&quot;{L(&#x27;az.html&#x27;)}&quot;&gt;A-Z / search&lt;/a&gt;&lt;a href=&quot;{L(&#x27;licences.html&#x27;)}&quot;&gt;Licences&lt;/a&gt;&lt;a href=&quot;{L(&#x27;code/index.html&#x27;)}&quot;&gt;Code&lt;/a&gt;&lt;/nav&gt;&lt;/header&gt;
 &lt;main&gt;&lt;div class=&quot;crumbs&quot;&gt;{cr}&lt;/div&gt;
 {body}
 &lt;/main&gt;&lt;footer&gt;&lt;p class=&quot;attr&quot;&gt;{ATTR_HTML} Full text: &lt;a href=&quot;{L(&#x27;LICENCE&#x27;)}&quot;&gt;LICENCE&lt;/a&gt;. Third-party parts keep their own licences (&lt;a href=&quot;{L(&#x27;licences.html&#x27;)}&quot;&gt;Licences&lt;/a&gt;).&lt;/p&gt;Generated by &lt;a href=&quot;{L(&#x27;code/index.html&#x27;)}&quot;&gt;wiki/build.py&lt;/a&gt; from local sources. Contains public sector information licensed under the Open Government Licence v3.0. See &lt;a href=&quot;{L(&#x27;licences.html&#x27;)}&quot;&gt;Licences&lt;/a&gt;.&lt;/footer&gt;
@@ -276,7 +277,7 @@ def main(argv=None):
         if cat == &quot;signs&quot;:
             lst = &quot;&quot;.join(&#x27;&lt;li&gt;&lt;a href=&quot;%s&quot;&gt;%s&lt;/a&gt; (%d: %s)&lt;/li&gt;&#x27; % (
                 s.link(rel, &quot;cat/signs--%s.html&quot; % loaders.slugify(k)), E_(k), len(v), E_(status_counts(v))) for k, v in sorted(subs.items()))
-            body = &quot;&lt;h1&gt;%s&lt;/h1&gt;&lt;p&gt;%s&lt;/p&gt;&lt;p&gt;%d items: %s&lt;/p&gt;&lt;h2&gt;Families&lt;/h2&gt;&lt;ul&gt;%s&lt;/ul&gt;&quot; % (E_(title), E_(desc), len(its), E_(status_counts(its)), lst)
+            body = &quot;&lt;h1&gt;%s&lt;/h1&gt;&lt;p&gt;%s&lt;/p&gt;&lt;p&gt;%d items: %s. &lt;a href=\&quot;%s\&quot;&gt;All signs&lt;/a&gt; shows every face in one gallery.&lt;/p&gt;&lt;h2&gt;Families&lt;/h2&gt;&lt;ul&gt;%s&lt;/ul&gt;&quot; % (E_(title), E_(desc), len(its), E_(status_counts(its)), s.link(rel, &quot;all-signs.html&quot;), lst)
             s.page(rel, title, body)
             for k, v in sorted(subs.items()):
                 srel = &quot;cat/signs--%s.html&quot; % loaders.slugify(k)
@@ -287,17 +288,32 @@ def main(argv=None):
             body = &quot;&lt;h1&gt;%s&lt;/h1&gt;&lt;p&gt;%s&lt;/p&gt;&lt;p&gt;%d items: %s&lt;/p&gt;%s&quot; % (E_(title), E_(desc), len(its), E_(status_counts(its)), parts)
             s.page(rel, title, body)
 
+    # ---- all signs (every sign face in one gallery)
+    signs_all = bycat.get(&quot;signs&quot;, [])
+    s.page(
+        &quot;all-signs.html&quot;,
+        &quot;All signs&quot;,
+        &quot;&lt;h1&gt;All signs&lt;/h1&gt;&lt;p&gt;%d UK sign faces, one card each. Open a card for the full item page, &quot;
+        &quot;diagram reference and licence. Families are also listed under &lt;a href=\&quot;%s\&quot;&gt;Signs&lt;/a&gt;.&lt;/p&gt;&quot;
+        &quot;&lt;p&gt;%s&lt;/p&gt;%s&quot; % (
+            len(signs_all),
+            s.link(&quot;all-signs.html&quot;, &quot;cat/signs.html&quot;),
+            E_(status_counts(signs_all)),
+            item_grid(&quot;all-signs.html&quot;, signs_all),
+        ),
+    )
+
     # ---- home
     rows = &quot;&quot;.join(&#x27;&lt;tr&gt;&lt;td&gt;&lt;a href=&quot;cat/%s.html&quot;&gt;%s&lt;/a&gt;&lt;/td&gt;&lt;td&gt;%d&lt;/td&gt;&lt;td&gt;%s&lt;/td&gt;&lt;/tr&gt;&#x27; % (c, E_(t), len(bycat.get(c, [])), E_(status_counts(bycat.get(c, []))))
                    for c, t, _ in CATS)
     legend = &quot;&quot;.join(&quot;&lt;li&gt;%s&lt;/li&gt;&quot; % badge(k) for k in STATUS)
-    home = f&quot;&quot;&quot;&lt;h1&gt;GridForge Street Wiki&lt;/h1&gt;
-&lt;p&gt;Every UK sign face, road marking, matrix glyph and piece of street furniture in the GridForge sources, one page each, regenerated by one command from the source trees. Placeholders and unverified items are labelled as such and never shown as drawn.&lt;/p&gt;
+    home = f&quot;&quot;&quot;&lt;h1&gt;{E_(SITE_NAME)}&lt;/h1&gt;
+&lt;p&gt;Every UK sign face, road marking, matrix glyph and piece of street furniture in the source trees, one page each, regenerated by one command. Placeholders and unverified items are labelled as such and never shown as drawn. &lt;a href=&quot;all-signs.html&quot;&gt;All signs&lt;/a&gt; shows every sign face in one gallery.&lt;/p&gt;
 &lt;form class=&quot;search&quot; action=&quot;az.html&quot; method=&quot;get&quot;&gt;&lt;input name=&quot;q&quot; placeholder=&quot;Search id or name (e.g. 670, bus stop, 6031)&quot;/&gt;&lt;button&gt;Search&lt;/button&gt;&lt;/form&gt;
 &lt;table class=&quot;grid&quot;&gt;&lt;tr&gt;&lt;th&gt;Category&lt;/th&gt;&lt;th&gt;Items&lt;/th&gt;&lt;th&gt;Status&lt;/th&gt;&lt;/tr&gt;{rows}&lt;tr&gt;&lt;th&gt;Total&lt;/th&gt;&lt;th&gt;{len(items)}&lt;/th&gt;&lt;th&gt;&lt;/th&gt;&lt;/tr&gt;&lt;/table&gt;
 &lt;h2&gt;Status labels&lt;/h2&gt;&lt;ul class=&quot;legend&quot;&gt;{legend}&lt;/ul&gt;
 &lt;h2&gt;Not included&lt;/h2&gt;&lt;ul&gt;
-&lt;li&gt;Third-party asset kits elsewhere in the gridforge-art tree (Kenney, KayKit, Quaternius, cartoon-city): not street-furniture sources for this wiki and under their own licences.&lt;/li&gt;
+&lt;li&gt;Third-party asset kits (Kenney, KayKit, Quaternius, cartoon-city): not street-furniture sources for this wiki and under their own licences.&lt;/li&gt;
 &lt;li&gt;Spec 020 &lt;code&gt;_old/&lt;/code&gt; (r1 files kept for diffing) and LOD1/LOD2 renders (LOD file names are listed on each 3D page).&lt;/li&gt;
 &lt;li&gt;The SI PDFs in the atlas &lt;code&gt;refs/&lt;/code&gt;, and the atlas&#x27; own interactive app (it loads web fonts); only its generated face SVGs are used.&lt;/li&gt;
 &lt;li&gt;No Transport typeface, no web fonts, no location or personal data.&lt;/li&gt;&lt;/ul&gt;&quot;&quot;&quot;
@@ -331,7 +347,9 @@ def main(argv=None):
 &lt;h2&gt;Art matrix glyphs&lt;/h2&gt;&lt;p&gt;OGL v3.0 attribution as recorded in the kit README (traced from SI 2016/362 Sch 15). Pending sign-off; pixel placement unverified.&lt;/p&gt;
 &lt;h2&gt;Typeface&lt;/h2&gt;&lt;p&gt;No Transport typeface or any font file is embedded. Legends are Schedule 17 stand-in strokes.&lt;/p&gt;
 &lt;h2&gt;Wiki compilation, generator code and original content&lt;/h2&gt;&lt;p&gt;CC BY-ND 4.0, as above (owner&#x27;s choice, 19 Nov 2026). This does not change the licences of the third-party parts listed on this page.&lt;/p&gt;
-&lt;h2&gt;Signage Atlas LICENCE.md (verbatim)&lt;/h2&gt;&lt;pre&gt;{E_(lic_atlas)}&lt;/pre&gt;&quot;&quot;&quot;
+&lt;h2&gt;Signage Atlas LICENCE.md&lt;/h2&gt;
+&lt;p&gt;Quoted from the atlas licence file. Mentions of a former engine name, if any, are rewritten by the wiki generator so this standalone wiki does not carry them; the licence terms are otherwise unchanged.&lt;/p&gt;
+&lt;pre&gt;{E_(lic_atlas)}&lt;/pre&gt;&quot;&quot;&quot;
     s.page(&quot;licences.html&quot;, &quot;Licences&quot;, licp)
 
     # ---- code section
@@ -355,7 +373,7 @@ def main(argv=None):
         lis.append(&#x27;&lt;li&gt;&lt;a href=&quot;view/%s.html&quot;&gt;%s&lt;/a&gt; (%d bytes)&lt;/li&gt;&#x27; % (f, E_(f), len(data)))
     s.page(&quot;code/index.html&quot;, &quot;Code&quot;, &quot;&quot;&quot;&lt;h1&gt;Generator code&lt;/h1&gt;
 &lt;p&gt;The whole wiki is regenerated from the sources by one command:&lt;/p&gt;&lt;pre&gt;python3 wiki/build.py --out site&lt;/pre&gt;
-&lt;p&gt;Source paths come from flags (&lt;code&gt;--atlas&lt;/code&gt;, &lt;code&gt;--matrix&lt;/code&gt;, &lt;code&gt;--art-placeholders&lt;/code&gt;, &lt;code&gt;--kit020&lt;/code&gt;, &lt;code&gt;--kit020-dir&lt;/code&gt;, &lt;code&gt;--look&lt;/code&gt;), &lt;code&gt;GFWIKI_*&lt;/code&gt; environment variables or a gitignored &lt;code&gt;wiki/local_config.json&lt;/code&gt; (see &lt;code&gt;wiki/local_config.json.example&lt;/code&gt;). Checks: &lt;code&gt;python3 tests/check.py&lt;/code&gt; (twice-regen byte identity, link check, item counts).&lt;/p&gt;
+&lt;p&gt;Source paths come from flags (&lt;code&gt;--atlas&lt;/code&gt;, &lt;code&gt;--matrix&lt;/code&gt;, &lt;code&gt;--art-placeholders&lt;/code&gt;, &lt;code&gt;--kit020&lt;/code&gt;, &lt;code&gt;--kit020-dir&lt;/code&gt;, &lt;code&gt;--look&lt;/code&gt;), &lt;code&gt;STREETWIKI_*&lt;/code&gt; environment variables or a gitignored &lt;code&gt;wiki/local_config.json&lt;/code&gt; (see &lt;code&gt;wiki/local_config.json.example&lt;/code&gt;). Checks: &lt;code&gt;python3 tests/check.py&lt;/code&gt; (twice-regen byte identity, link check, item counts).&lt;/p&gt;
 &lt;ul&gt;%s&lt;/ul&gt;&quot;&quot;&quot; % &quot;&quot;.join(lis))
 
     s.flush()
@@ -366,5 +384,5 @@ def main(argv=None):
 if __name__ == &quot;__main__&quot;:
     sys.exit(main())
 </pre>
-</main><footer><p class="attr">GridForge Street Wiki &copy; 2026 AI-tainment (<a href="https://github.com/AI-tainment">https://github.com/AI-tainment</a>), licensed under <a rel="license" href="https://creativecommons.org/licenses/by-nd/4.0/">CC BY-ND 4.0</a> (https://creativecommons.org/licenses/by-nd/4.0/). Full text: <a href="../../../LICENCE">LICENCE</a>. Third-party parts keep their own licences (<a href="../../../licences.html">Licences</a>).</p>Generated by <a href="../../index.html">wiki/build.py</a> from local sources. Contains public sector information licensed under the Open Government Licence v3.0. See <a href="../../../licences.html">Licences</a>.</footer>
+</main><footer><p class="attr">Street Wiki &copy; 2026 AI-tainment (<a href="https://github.com/AI-tainment">https://github.com/AI-tainment</a>), licensed under <a rel="license" href="https://creativecommons.org/licenses/by-nd/4.0/">CC BY-ND 4.0</a> (https://creativecommons.org/licenses/by-nd/4.0/). Full text: <a href="../../../LICENCE">LICENCE</a>. Third-party parts keep their own licences (<a href="../../../licences.html">Licences</a>).</p>Generated by <a href="../../index.html">wiki/build.py</a> from local sources. Contains public sector information licensed under the Open Government Licence v3.0. See <a href="../../../licences.html">Licences</a>.</footer>
 </body></html>

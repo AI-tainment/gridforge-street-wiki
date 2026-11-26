@@ -3,7 +3,7 @@
   "atlas": "<path to the signage-atlas checkout>",
   "matrix": "<signage-atlas-art>/kit/street_furniture/sign/matrix",
   "art_placeholders": "<signage-atlas-art>/placeholders",
-  "kit020": "<gridforge-art>/020/gf.module.bus_stop_ref.gfkit",
-  "kit020_dir": "<gridforge-art>/020",
+  "kit020": "<bus-stop-kit>/gf.module.bus_stop_ref.gfkit",
+  "kit020_dir": "<bus-stop-kit>",
   "look": "<signage-atlas-art>/kit/street_furniture/bus_stop/look"
 }

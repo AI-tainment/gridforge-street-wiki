@@ -141,9 +141,9 @@ def load_atlas(atlas, known):
                     fields.append(("Face source", label))
                     if fsrc["source"] == "eps":
                         ep = os.path.join(atlas, "site/faces-eps/uk/signs", i.replace("/", "_") + ".svg")
-                        # No EPS cache (clean checkout) or GFWIKI_EPS=off: no EPS link and no Crown notice for
+                        # No EPS cache (clean checkout) or STREETWIKI_EPS=off: no EPS link and no Crown notice for
                         # this face; the procedural face (then the placeholder) is shown instead.
-                        if os.environ.get("GFWIKI_EPS", "auto") != "off" and os.path.exists(ep):
+                        if os.environ.get("STREETWIKI_EPS", "auto") != "off" and os.path.exists(ep):
                             eps_preview = ep
                             if fsrc.get("example"):
                                 eps_example = True

@@ -37,7 +37,7 @@ yet (each cites its review file). Edit it by hand.
 
 ## Content
 
-- Home, category pages (sign families, markings, 2D furniture, matrix glyphs, Art drafts, 3D furniture), one page per item, A-Z index with static-JS search, licences page, and a code section (every generator file rendered as a page and copied raw).
+- Home, an All-signs gallery of every sign face, category pages (sign families, markings, 2D furniture, matrix glyphs, Art drafts, 3D furniture), one page per item, A-Z index with static-JS search, licences page, and a code section (every generator file rendered as a page and copied raw).
 - Item pages: preview (SVG faces; matrix grids drawn as SVG; 3D rendered to PNG), id, name, diagram ref / source page, status, attribution and licence.
 - Status labels: Drawn, ADJUST (Reviewer), Placeholder, Unverified source, Pending owner decision, Pending sign-off, Art draft not yet imported, Reference placeholder (Spec 020). Placeholder faces show a banner saying the image is the neutral placeholder, not the sign.
 - **Art batches 10-12 decision:** included as their own category, every page labelled "Art draft, not yet imported" (30 drawn) or "Unverified source" (11 with no locatable diagram, no face). They are not merged into the atlas sign pages, which keep showing the atlas' own placeholder until Build imports them.

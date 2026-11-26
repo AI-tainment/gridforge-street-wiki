@@ -9,10 +9,11 @@
 (c) item counts, taken from the sources independently of wiki/loaders.py,
     must equal the generated item pages (printed as a table).
 Plus: no font files / @font-face / web-font hosts, no absolute or file: links,
-no former-engine mark in site/ or tracked files (see tests/standalone-allow.txt).
+no former-engine mark in site/ or tracked files (see tests/standalone-allow.txt),
+image-text OCR of every tracked PNG/JPG (tesseract required) and a grep of SVG text.
 Exit code 0 only if every check passes.
 """
-import hashlib, json, os, re, subprocess, sys, tempfile, zipfile
+import hashlib, io, json, os, re, shutil, subprocess, sys, tempfile, zipfile
 from html.parser import HTMLParser
 from urllib.parse import urlsplit, unquote
 
@@ -352,6 +353,417 @@ def check_animation(site, say):
     return ok
 
 
+def _tess_run(args, timeout=60):
+    return subprocess.run(args, capture_output=True, timeout=timeout)
+
+
+def tesseract_version():
+    """Return tesseract version string, or None if the binary is missing."""
+    exe = shutil.which("tesseract")
+    if not exe:
+        return None
+    r = _tess_run([exe, "--version"])
+    text = (r.stdout or b"") + (r.stderr or b"")
+    first = text.decode("utf-8", "replace").splitlines()[0].strip() if text else ""
+    return first or "tesseract (version unknown)"
+
+
+# Needles assembled from parts so this file stays clean of the banned mark
+# and of the owner's name (the text-only no-name / standalone-mark scans
+# would otherwise flag the checker itself).
+_MARK = "grid" + "forge"
+_FIRST = "ph" + "il"
+_LAST = "rob" + "inson"
+_HOME = "/" + "ho" + "me" + "/"
+
+# OCR-tolerant mark: optional separators, common glyph confusions (1/l/i, 0/o).
+_MARK_RX = re.compile(r"g[\W_]*r[\W_]*[i1l][\W_]*d[\W_]*f[\W_]*[o0][\W_]*r[\W_]*g[\W_]*e", re.I)
+_MARK_COLLAPSED_RX = re.compile(r"gr[i1l]df[o0]rge", re.I)
+_FIRST_COLLAPSED_RX = re.compile(r"ph[i1l][i1lt]s?(?:sign|$)")
+# Owner's first name as a whole word, plus OCR noise (l/t/1) and optional possessive.
+# Must not match a compound with a letter immediately before or after.
+_FIRST_RX = re.compile(r"(?<![a-z0-9])ph[i1l][i1lt](?:['’`]s)?(?![a-z0-9])", re.I)
+_LAST_RX = re.compile(r"(?<![a-z0-9])r[o0]b[i1l]ns[o0]n(?![a-z0-9])", re.I)
+_HOME_RX = re.compile(re.escape(_HOME) + r"\s*ph[i1l][i1lt]", re.I)
+# Exact-ish forms in SVG / metadata (no OCR noise to forgive).
+_MARK_TEXT_RX = re.compile(r"grid[\s._-]*forge", re.I)
+_FIRST_TEXT_RX = re.compile(r"(?<![a-z0-9])" + re.escape(_FIRST) + r"(?:['’]s)?(?![a-z0-9])", re.I)
+_LAST_TEXT_RX = re.compile(r"(?<![a-z0-9])" + re.escape(_LAST) + r"(?![a-z0-9])", re.I)
+_HOME_TEXT_RX = re.compile(re.escape(_HOME) + re.escape(_FIRST), re.I)
+
+_RASTER_EXT = (".png", ".jpg", ".jpeg")
+_HIST_COMMIT = "a56e717"
+_HIST_SHOTS = [
+    "qa/screenshots/01-home.png",
+    "qa/screenshots/02-category-warning-signs.png",
+    "qa/screenshots/03-drawn-sign-670.png",
+    "qa/screenshots/04-placeholder-sign-2026.png",
+    "qa/screenshots/05-3d-bay3-cantilever.png",
+    "qa/screenshots/06-matrix-6031.1.png",
+    "qa/screenshots/07-code-build-py.png",
+    "qa/screenshots/08-licences.png",
+]
+_HIST_LOOK = [
+    "site/media/furniture3d/look-pack/previews/bay1_cantilever.png",
+    "site/media/furniture3d/look-pack/previews/bay2_cantilever.png",
+    "site/media/furniture3d/look-pack/previews/bay3_cantilever.png",
+    "site/media/furniture3d/look-pack/previews/bay3_enclosed.png",
+    "site/media/furniture3d/look-pack/previews/bench.png",
+    "site/media/furniture3d/look-pack/previews/bin.png",
+    "site/media/furniture3d/look-pack/previews/flag_face.png",
+    "site/media/furniture3d/look-pack/previews/flag_plate.png",
+    "site/media/furniture3d/look-pack/previews/lod_strip_bay3_cantilever.png",
+    "site/media/furniture3d/look-pack/swatches/swatch_sheet.png",
+]
+
+
+def mask_secret(text):
+    """Replace banned mark / name in a snippet so reports stay clean."""
+    if not text:
+        return text
+    def star(m):
+        s = m.group(0)
+        return s[0] + "*" * (len(s) - 1)
+    out = _MARK_RX.sub(star, text)
+    out = _MARK_TEXT_RX.sub(star, out)
+    out = _FIRST_RX.sub(star, out)
+    out = _FIRST_TEXT_RX.sub(star, out)
+    out = _LAST_RX.sub(star, out)
+    out = _LAST_TEXT_RX.sub(star, out)
+    out = _HOME_RX.sub(lambda m: m.group(0)[0] + "*" * (len(m.group(0)) - 1), out)
+    out = _HOME_TEXT_RX.sub(lambda m: m.group(0)[0] + "*" * (len(m.group(0)) - 1), out)
+    # Cramped OCR that glues the name onto "sign-off".
+    out = re.sub(r"ph[i1l][i1lt]s?sign", lambda m: m.group(0)[0] + "*" * (len(m.group(0)) - 1), out, flags=re.I)
+    return out
+
+
+def _collapse(text):
+    return re.sub(r"[^a-z0-9]+", "", text.lower())
+
+
+def find_image_text_hits(text, tolerant=True):
+    """Return a list of (kind, masked snippet) hits in text."""
+    if not text:
+        return []
+    hits = []
+    mark_rx = _MARK_RX if tolerant else _MARK_TEXT_RX
+    first_rx = _FIRST_RX if tolerant else _FIRST_TEXT_RX
+    last_rx = _LAST_RX if tolerant else _LAST_TEXT_RX
+    home_rx = _HOME_RX if tolerant else _HOME_TEXT_RX
+    for rx, kind in ((mark_rx, "mark"), (first_rx, "name"), (last_rx, "name"), (home_rx, "home")):
+        for m in rx.finditer(text):
+            lo, hi = max(0, m.start() - 20), min(len(text), m.end() + 20)
+            snippet = mask_secret(re.sub(r"\s+", " ", text[lo:hi]).strip())
+            hits.append((kind, snippet))
+    if tolerant:
+        collapsed = _collapse(text)
+        if _MARK_COLLAPSED_RX.search(collapsed) and not any(k == "mark" for k, _ in hits):
+            hits.append(("mark", "[collapsed]"))
+        if _FIRST_COLLAPSED_RX.search(collapsed) and not any(k == "name" for k, _ in hits):
+            hits.append(("name", "[collapsed]"))
+    # unique, stable
+    seen, out = set(), []
+    for h in hits:
+        if h not in seen:
+            seen.add(h)
+            out.append(h)
+    return out
+
+
+def png_text_chunks(data):
+    """Extract tEXt / zTXt / iTXt strings from a PNG, if any."""
+    import struct, zlib
+    out = []
+    if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return out
+    i = 8
+    nlen = len(data)
+    while i + 8 <= nlen:
+        n = struct.unpack(">I", data[i:i + 4])[0]
+        typ = data[i + 4:i + 8]
+        start = i + 8
+        if start + n + 4 > nlen:
+            break
+        chunk = data[start:start + n]
+        i = start + n + 4
+        try:
+            if typ == b"tEXt":
+                out.append(chunk.replace(b"\x00", b"=").decode("latin-1", "replace"))
+            elif typ == b"zTXt":
+                nul = chunk.find(b"\x00")
+                if nul >= 0 and len(chunk) > nul + 2:
+                    out.append(chunk[:nul].decode("latin-1", "replace") + "=" +
+                               zlib.decompress(chunk[nul + 2:]).decode("utf-8", "replace"))
+            elif typ == b"iTXt":
+                nul = chunk.find(b"\x00")
+                if nul >= 0 and len(chunk) >= nul + 5:
+                    rest = chunk[nul + 1:]
+                    comp, _meth = rest[0], rest[1]
+                    # lang\0 trans\0 text
+                    parts = rest[2:].split(b"\x00", 2)
+                    body = parts[-1] if parts else b""
+                    if comp == 1:
+                        body = zlib.decompress(body)
+                    out.append(chunk[:nul].decode("latin-1", "replace") + "=" +
+                               body.decode("utf-8", "replace"))
+            elif typ == b"IEND":
+                break
+        except Exception:
+            continue
+    return out
+
+
+def raster_metadata_text(path):
+    parts = []
+    data = open(path, "rb").read()
+    parts.extend(png_text_chunks(data))
+    try:
+        from PIL import Image
+        im = Image.open(io.BytesIO(data) if False else path)
+        if im.info:
+            for k, v in im.info.items():
+                parts.append("%s=%s" % (k, v))
+        exif = getattr(im, "getexif", lambda: None)()
+        if exif:
+            for k, v in exif.items():
+                parts.append("exif:%s=%s" % (k, v))
+    except Exception:
+        pass
+    return "\n".join(str(p) for p in parts)
+
+
+def ocr_raster(path, exe):
+    """OCR a raster with several page-segmentation modes; return combined text."""
+    chunks = []
+    for psm in ("4", "6", "11"):
+        r = _tess_run([exe, path, "stdout", "--psm", psm, "-l", "eng"], timeout=90)
+        chunks.append(r.stdout.decode("utf-8", "replace"))
+    return "\n".join(chunks)
+
+
+def list_rasters(site):
+    """Tracked PNG/JPG plus every raster under site/, unique and sorted."""
+    tracked = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True).stdout.split("\n")
+    paths = []
+    for f in tracked:
+        if f and os.path.splitext(f)[1].lower() in _RASTER_EXT:
+            paths.append(os.path.join(REPO, f))
+    if os.path.isdir(site):
+        for dp, dn, fn in os.walk(site):
+            for f in fn:
+                if os.path.splitext(f)[1].lower() in _RASTER_EXT:
+                    paths.append(os.path.join(dp, f))
+    # unique by real path
+    out, seen = [], set()
+    for p in paths:
+        if not os.path.isfile(p):
+            continue
+        rp = os.path.realpath(p)
+        if rp in seen:
+            continue
+        seen.add(rp)
+        out.append(p)
+    return sorted(out, key=lambda p: os.path.relpath(p, REPO))
+
+
+def list_svgs(site):
+    tracked = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True).stdout.split("\n")
+    paths = [os.path.join(REPO, f) for f in tracked if f.lower().endswith(".svg")]
+    if os.path.isdir(site):
+        for dp, dn, fn in os.walk(site):
+            for f in fn:
+                if f.lower().endswith(".svg"):
+                    paths.append(os.path.join(dp, f))
+    out, seen = [], set()
+    for p in paths:
+        if not os.path.isfile(p):
+            continue
+        rp = os.path.realpath(p)
+        if rp in seen:
+            continue
+        seen.add(rp)
+        out.append(p)
+    return sorted(out, key=lambda p: os.path.relpath(p, REPO))
+
+
+def _git_show(commit, rel):
+    r = subprocess.run(["git", "show", "%s:%s" % (commit, rel)], cwd=REPO,
+                       capture_output=True)
+    if r.returncode != 0:
+        return None
+    return r.stdout
+
+
+def _commit_is_ancestor(commit):
+    r = subprocess.run(["git", "merge-base", "--is-ancestor", commit, "HEAD"], cwd=REPO)
+    return r.returncode == 0
+
+
+def _write_unit_png(path, lines, size=(640, 160)):
+    from PIL import Image, ImageDraw, ImageFont
+    im = Image.new("RGB", size, (17, 17, 19))
+    draw = ImageDraw.Draw(im)
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
+    except Exception:
+        font = ImageFont.load_default()
+    y = 24
+    for line in lines:
+        draw.text((16, y), line, fill=(230, 230, 224), font=font)
+        y += 36
+    im.save(path, format="PNG", optimize=False, compress_level=9)
+
+
+def check_image_text(site, say):
+    """OCR tracked and site rasters, grep SVGs, and scan image metadata."""
+    ok = True
+    ver = tesseract_version()
+    if not ver:
+        say("    image-text tesseract: MISSING (required as a dev/test tool; install tesseract-ocr and re-run)")
+        return False
+    say("    image-text tesseract: %s" % ver)
+    exe = shutil.which("tesseract")
+
+    # --- unit: the matcher must flag a synthetic dirty raster and spare a clean one
+    unit_bad = []
+    with tempfile.TemporaryDirectory() as td:
+        dirty = os.path.join(td, "dirty.png")
+        clean = os.path.join(td, "clean.png")
+        _write_unit_png(dirty, [
+            ("G" + "rid" + "F" + "orge") + " Street Wiki",
+            "awaiting " + ("Ph" + "il's") + " sign-off.",
+            _HOME + _FIRST,
+        ])
+        _write_unit_png(clean, [
+            "Street Wiki",
+            "awaiting the owner's sign-off.",
+            ("Up" + "hill road marking"),
+        ])
+        d_hits = find_image_text_hits(ocr_raster(dirty, exe), tolerant=True)
+        c_hits = find_image_text_hits(ocr_raster(clean, exe), tolerant=True)
+        kinds = {k for k, _ in d_hits}
+        if "mark" not in kinds or "name" not in kinds or "home" not in kinds:
+            unit_bad.append("dirty raster not fully flagged (got %s)" % sorted(kinds))
+        if c_hits:
+            unit_bad.append("clean raster flagged: %s" % c_hits[:3])
+        # recaption of a 900x560 band must drop the name and show the owner wording
+        import recaption
+        from PIL import Image, ImageDraw, ImageFont
+        im = Image.new("RGBA", (900, 560), (17, 17, 19, 255))
+        d = ImageDraw.Draw(im)
+        d.text((10, 546), "NOT FOR SHIPPING — awaiting " + ("Ph" + "il's") + " sign-off.",
+               fill=(170, 170, 170, 255),
+               font=ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 9))
+        buf = io.BytesIO(); im.save(buf, format="PNG")
+        rewritten = recaption.rewrite_png(buf.getvalue())
+        recap_path = os.path.join(td, "recap.png")
+        open(recap_path, "wb").write(rewritten)
+        recap_text = ocr_raster(recap_path, exe)
+        if find_image_text_hits(recap_text, tolerant=True):
+            unit_bad.append("recaption left a name/mark: %s" % mask_secret(recap_text)[:120])
+        if recaption.new_phrase().lower() not in recap_text.lower().replace("’", "'"):
+            # tolerate a missing apostrophe in OCR
+            folded = recap_text.lower().replace("’", "'").replace("'", "")
+            if "awaiting the owners sign-off" not in folded:
+                unit_bad.append("recaption missing new wording: %s" % mask_secret(recap_text)[:120])
+        meta = png_text_chunks(rewritten)
+        if meta:
+            unit_bad.append("recaption wrote metadata: %s" % meta[:3])
+    if unit_bad:
+        say("    image-text unit: FAIL %s" % unit_bad[:3])
+        ok = False
+    else:
+        say("    image-text unit: OK")
+
+    # --- current rasters
+    rasters = list_rasters(site)
+    skipped = []  # (rel, why)
+    ocr_hits = []  # (rel, kind, snippet)
+    meta_hits = []
+    scanned = 0
+    # Official Crown faces are published as SVG (--eps.svg), not rasters, so
+    # they are grepped below rather than OCR'd. No Crown EPS raster is tracked
+    # today, and nothing is skipped as "hopeless OCR".
+    for p in rasters:
+        rel = os.path.relpath(p, REPO)
+        scanned += 1
+        text = ocr_raster(p, exe)
+        for kind, snippet in find_image_text_hits(text, tolerant=True):
+            ocr_hits.append((rel, kind, snippet))
+        for kind, snippet in find_image_text_hits(raster_metadata_text(p), tolerant=False):
+            meta_hits.append((rel, kind, snippet))
+    say("    image-text OCR: %d raster(s) scanned, %d skipped, %d hit(s) %s" % (
+        scanned, len(skipped), len(ocr_hits),
+        [(h[0], h[1], h[2][:40]) for h in ocr_hits[:5]]))
+    if skipped:
+        for rel, why in skipped:
+            say("    image-text skip: %s (%s)" % (rel, why))
+    else:
+        say("    image-text skip: 0 (Crown official faces are published as SVG --eps.svg and grepped, not OCR'd; no hopeless Crown raster is tracked)")
+    ok &= not ocr_hits
+    say("    image-text metadata: %d raster(s) scanned, %d hit(s) %s" % (
+        scanned, len(meta_hits), [(h[0], h[1], h[2][:40]) for h in meta_hits[:5]]))
+    ok &= not meta_hits
+
+    # --- SVGs (grep text; no OCR)
+    svg_hits = []
+    svgs = list_svgs(site)
+    for p in svgs:
+        rel = os.path.relpath(p, REPO)
+        try:
+            text = open(p, encoding="utf-8", errors="replace").read()
+        except Exception:
+            continue
+        for kind, snippet in find_image_text_hits(text, tolerant=False):
+            svg_hits.append((rel, kind, snippet))
+    say("    image-text SVG: %d file(s) grepped, %d hit(s) %s" % (
+        len(svgs), len(svg_hits), [(h[0], h[1], h[2][:40]) for h in svg_hits[:5]]))
+    ok &= not svg_hits
+
+    # --- historical proof: the same matcher must flag a56e717's dirty images
+    if not _commit_is_ancestor(_HIST_COMMIT):
+        say("    image-text historical: FAIL commit %s is not an ancestor of HEAD (cannot prove the checker against those images)" % _HIST_COMMIT)
+        ok = False
+    else:
+        missing = []
+        shot_mark, look_name = [], []
+        with tempfile.TemporaryDirectory() as td:
+            for rel in _HIST_SHOTS + _HIST_LOOK:
+                blob = _git_show(_HIST_COMMIT, rel)
+                if not blob:
+                    missing.append(rel)
+                    continue
+                dest = os.path.join(td, os.path.basename(rel))
+                # keep unique names when basenames could clash (they don't here)
+                if os.path.exists(dest):
+                    dest = os.path.join(td, rel.replace("/", "__"))
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                open(dest, "wb").write(blob)
+                hits = find_image_text_hits(ocr_raster(dest, exe), tolerant=True)
+                kinds = {k for k, _ in hits}
+                if rel in _HIST_SHOTS and "mark" in kinds:
+                    shot_mark.append(rel)
+                if rel in _HIST_LOOK and "name" in kinds:
+                    look_name.append(rel)
+        # Required: all 8 screenshots show the mark; the 8 Reviewer-listed
+        # look-pack previews (plus lod strip and swatch, which also baked the
+        # name) show the owner's name.
+        need_shots = set(_HIST_SHOTS)
+        need_look = set(_HIST_LOOK[:8])  # the eight listed by Reviewer
+        missed_shots = sorted(need_shots - set(shot_mark))
+        missed_look = sorted(need_look - set(look_name))
+        extra_ok = [r for r in _HIST_LOOK[8:] if r in look_name]
+        if missing or missed_shots or missed_look:
+            say("    image-text historical: FAIL %s missing=%s missed-shots=%s missed-look=%s" % (
+                _HIST_COMMIT, missing[:3], missed_shots, missed_look))
+            ok = False
+        else:
+            say("    image-text historical: %s would have failed (%d/8 screenshots flagged for the mark, %d/8 listed look-pack previews flagged for the name; also %d extra look-pack raster(s) %s) OK" % (
+                _HIST_COMMIT, len(shot_mark), len([r for r in look_name if r in need_look]),
+                len(extra_ok), extra_ok or "none"))
+    return ok
+
+
 def main():
     site = os.path.join(REPO, sys.argv[sys.argv.index("--site") + 1]) if "--site" in sys.argv else os.path.join(REPO, "site")
     ok = True
@@ -481,6 +893,7 @@ def main():
     # 3D viewer: vendored hashes, GLB+poster, no remote resource URLs, metadata scrub
     ok &= check_3d(site, say)
     ok &= check_animation(site, say)
+    ok &= check_image_text(site, say)
     # (c)
     src = source_counts()
     gen, _ = site_counts(site)

@@ -1,14 +1,14 @@
     sanitise unit: OK
-(a) twice-regen: diff -r exit 0; manifest sha256 run1 e8070d81f6ef59c8571487a6c7e144ad3c45438832ad3cc297f25e8bd9b7e18b run2 e8070d81f6ef59c8571487a6c7e144ad3c45438832ad3cc297f25e8bd9b7e18b; files 1607 -> IDENTICAL
-    committed site manifest sha256 e8070d81f6ef59c8571487a6c7e144ad3c45438832ad3cc297f25e8bd9b7e18b -> IDENTICAL
-(b) link check: 16882 internal href/src checked, 0 broken
+(a) twice-regen: diff -r exit 0; manifest sha256 run1 094a24fb08b6c33d82ba3c870c646cdb15ed89286d08ce09cf6a20d8d1fcbd3c run2 094a24fb08b6c33d82ba3c870c646cdb15ed89286d08ce09cf6a20d8d1fcbd3c; files 1609 -> IDENTICAL
+    committed site manifest sha256 094a24fb08b6c33d82ba3c870c646cdb15ed89286d08ce09cf6a20d8d1fcbd3c -> IDENTICAL
+(b) link check: 16902 internal href/src checked, 0 broken
     fonts: 0 font files / @font-face / web-font refs []
     EPS attribution: 164 EPS face(s) published, 0 without Crown copyright + OGL v3.0 []
     LICENCE: site/LICENCE present and identical to repo LICENCE (CC BY-ND 4.0 legal code): OK
-    footer: 708 HTML pages, 0 without the CC BY-ND 4.0 attribution footer []
-    no-name: 1651 files scanned (site/ + tracked), 0 matches []; allow-list empty
+    footer: 709 HTML pages, 0 without the CC BY-ND 4.0 attribution footer []
+    no-name: 1655 files scanned (site/ + tracked), 0 matches []; allow-list empty
     standalone-mark: 0 matches []; allow-list empty
-    abs-paths: 1651 files scanned (site/ + tracked), 0 matches []; allow-list empty
+    abs-paths: 1655 files scanned (site/ + tracked), 0 matches []; allow-list empty
     3D vendor: three.js 0.183.0, 7 file hash(es) OK
     3D items: 23 furniture3d pages, 22 interactive, 0 missing GLB/poster/listing []
     3D remote URLs: 0 disallowed resource URL(s) []
@@ -17,6 +17,13 @@
     animation coverage page: OK
     animation items: 2 sourced playback, 29 UNVERIFIED, 0 problems []
     animation paused note: OK
+    image-text tesseract: tesseract 5.5.0
+    image-text unit: OK
+    image-text OCR: 66 raster(s) scanned, 0 skipped, 0 hit(s) []
+    image-text skip: 0 (Crown official faces are published as SVG --eps.svg and grepped, not OCR'd; no hopeless Crown raster is tracked)
+    image-text metadata: 66 raster(s) scanned, 0 hit(s) []
+    image-text SVG: 790 file(s) grepped, 0 hit(s) []
+    image-text historical: a56e717 would have failed (8/8 screenshots flagged for the mark, 8/8 listed look-pack previews flagged for the name; also 2 extra look-pack raster(s) ['site/media/furniture3d/look-pack/previews/lod_strip_bay3_cantilever.png', 'site/media/furniture3d/look-pack/swatches/swatch_sheet.png']) OK
 (c) counts
     item                                 source     wiki  match
     artdraft                                 41       41  OK

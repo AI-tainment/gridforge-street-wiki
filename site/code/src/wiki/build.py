@@ -15,7 +15,7 @@ sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-import config, loaders, render3d, matrix_svg, sanitise, glb as glbfile, animate  # noqa: E402
+import config, loaders, render3d, matrix_svg, sanitise, glb as glbfile, animate, recaption  # noqa: E402
 
 E_ = html.escape
 CATS = [
@@ -244,8 +244,8 @@ def main(argv=None):
         elif k == "images":
             for p in it["images"]:
                 rel = "%s/%s/%s" % (base, os.path.basename(os.path.dirname(p)), os.path.basename(p))
-                s.write(rel, open(p, "rb").read())
-                it["media"].append((rel, "Art's existing image: %s/%s (copied, not re-rendered)" % (os.path.basename(os.path.dirname(p)), os.path.basename(p))))
+                s.write(rel, recaption.rewrite_png(open(p, "rb").read()))
+                it["media"].append((rel, "Art's existing image: %s/%s (geometry copied; sign-off caption recast in the wiki pipeline)" % (os.path.basename(os.path.dirname(p)), os.path.basename(p))))
         if it.get("anim") and it["anim"].get("play"):
             s.write(base + "--anim.svg", animate.lamp_pair_svg(it["anim"]))
             it["anim_rel"] = base + "--anim.svg"

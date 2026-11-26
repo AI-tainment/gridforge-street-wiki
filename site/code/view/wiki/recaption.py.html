@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>wiki/recaption.py | Street Wiki</title><link rel="stylesheet" href="../../../assets/wiki.css"/></head>
+<body><header><a class="brand" href="../../../index.html">Street Wiki</a>
+<nav><a href="../../../cat/signs.html">Signs</a><a href="../../../cat/markings.html">Road markings</a><a href="../../../cat/furniture.html">Street furniture (2D)</a><a href="../../../cat/matrix.html">Matrix glyphs and pictograms</a><a href="../../../cat/artdraft.html">Art drafts (batches 10-12)</a><a href="../../../cat/furniture3d.html">3D street furniture</a><a href="../../../all-signs.html">All signs</a><a href="../../../az.html">A-Z / search</a><a href="../../../licences.html">Licences</a><a href="../../index.html">Code</a></nav></header>
+<main><div class="crumbs"><a href="../../../index.html">Home</a> / <a href="../../index.html">Code</a></div>
+<h1><code>wiki/recaption.py</code></h1><p><a href="../../src/wiki/recaption.py">raw file</a></p><pre class="src">&quot;&quot;&quot;Wiki-side recaption of Art look-pack preview rasters.
+
+The art-tree generators bake a sign-off line that names the owner. This
+repo does not edit that tree; when those PNGs are copied into the site,
+``rewrite_png`` overpaints the caption band and redraws it as
+&quot;awaiting the owner&#x27;s sign-off&quot;, then writes a metadata-free PNG.
+Geometry and swatch cells are left untouched. Output is deterministic.
+&quot;&quot;&quot;
+from __future__ import annotations
+
+import io
+from PIL import Image, ImageDraw, ImageFont
+
+# Split so a literal search of this file stays clean of the owner&#x27;s name.
+_OLD = &quot;awaiting &quot; + &quot;Ph&quot; + &quot;il&#x27;s sign-off&quot;
+_NEW = &quot;awaiting the owner&#x27;s sign-off&quot;
+
+_DEJAVU = &quot;/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf&quot;
+_BG = (17, 17, 19)
+_FOOT_GREY = (170, 170, 170)
+_TITLE_GREY = (221, 221, 216)
+_SWATCH_BG = (18, 18, 18)
+_SWATCH_FG = (200, 200, 196)
+
+# Flag-face caption (same wording as the art-tree preview, recast).
+_FLAG_BODY = (
+    &quot;Spec 020 flag_face — TSRGD SI 2016/362 Schedule 11 Part 2 item 76, &quot;
+    &quot;diagram 970. Printed p217 = tsrgd2016.pdf PDF p218, page rotated 90° &quot;
+    &quot;clockwise. Primitives only (not a raster copy). Lettering: Schedule 17 &quot;
+    &quot;stand-in, not Transport. NOT FOR SHIPPING — &quot; + _NEW + &quot;.&quot;
+)
+_FLAG_OGL = (
+    &quot;Contains public sector information licensed under the Open Government &quot;
+    &quot;Licence v3.0. Pictogram proportions taken from The Traffic Signs &quot;
+    &quot;Regulations and General Directions 2016 (SI 2016/362), legislation.gov.uk.&quot;
+)
+
+_MPL_FOOT = (
+    &quot;NOT FOR SHIPPING — &quot; + _NEW + &quot;. Look applied to Architect r3; &quot;
+    &quot;Architect files not edited.&quot;
+)
+_LOD_FOOT = (
+    &quot;NOT FOR SHIPPING — &quot; + _NEW + &quot;. Look on Architect r3; files not edited.&quot;
+)
+_SWATCH_TITLE = (
+    &quot;Spec 020 look swatches — NOT FOR SHIPPING, &quot; + _NEW
+)
+
+
+def old_phrase():
+    return _OLD
+
+
+def new_phrase():
+    return _NEW
+
+
+def _font(size):
+    return ImageFont.truetype(_DEJAVU, size)
+
+
+def _wrap(text, fnt, max_w):
+    words = text.split()
+    lines, cur = [], &quot;&quot;
+    for w in words:
+        trial = (cur + &quot; &quot; + w).strip()
+        if fnt.getbbox(trial)[2] &lt;= max_w or not cur:
+            cur = trial
+        else:
+            lines.append(cur)
+            cur = w
+    if cur:
+        lines.append(cur)
+    return lines
+
+
+def _png_bytes(im):
+    &quot;&quot;&quot;Encode a PNG with no text chunks, timestamps, or other metadata.&quot;&quot;&quot;
+    if im.mode not in (&quot;RGB&quot;, &quot;RGBA&quot;, &quot;L&quot;):
+        im = im.convert(&quot;RGBA&quot;)
+    buf = io.BytesIO()
+    im.save(buf, format=&quot;PNG&quot;, optimize=False, compress_level=9)
+    return buf.getvalue()
+
+
+def _rewrite_mpl_preview(im):
+    &quot;&quot;&quot;900x560 matplotlib preview: footnote on a dark bottom band.&quot;&quot;&quot;
+    im = im.convert(&quot;RGBA&quot;)
+    w, h = im.size
+    draw = ImageDraw.Draw(im)
+    # Ink of the original 7 pt footnote sits around y=546–556; keep well clear
+    # of the model (title is at the top).
+    bg = _BG + (255,)
+    draw.rectangle([0, 538, w, h], fill=bg)
+    draw.text((10, 546), _MPL_FOOT, fill=_FOOT_GREY + (255,), font=_font(9))
+    return im
+
+
+def _rewrite_lod_strip(im):
+    &quot;&quot;&quot;LOD comparison strip: footer drawn at (24, height-16) in 10 pt.&quot;&quot;&quot;
+    im = im.convert(&quot;RGB&quot;)
+    w, h = im.size
+    draw = ImageDraw.Draw(im)
+    draw.rectangle([0, h - 22, w, h], fill=_BG)
+    draw.text((24, h - 16), _LOD_FOOT, fill=_FOOT_GREY, font=_font(10))
+    return im
+
+
+def _rewrite_swatch(im):
+    &quot;&quot;&quot;Swatch sheet: header only (cells start at y=28).&quot;&quot;&quot;
+    im = im.convert(&quot;RGB&quot;)
+    w, h = im.size
+    draw = ImageDraw.Draw(im)
+    draw.rectangle([0, 0, w, 27], fill=_SWATCH_BG)
+    # DejaVu 10 pt stays inside the header band (cells start at y=28) and OCRs cleanly.
+    draw.text((8, 6), _SWATCH_TITLE, fill=_SWATCH_FG, font=_font(10))
+    return im
+
+
+def _rewrite_flag_face(im):
+    &quot;&quot;&quot;Keep the 1024px face; redraw the caption bar with the recast line.&quot;&quot;&quot;
+    im = im.convert(&quot;RGB&quot;)
+    w, h = im.size
+    face_h = 1024
+    if w != 1024 or h &lt; face_h:
+        return None
+    face = im.crop((0, 0, w, face_h))
+    body_font = _font(13)
+    small = _font(11)
+    body = _wrap(_FLAG_BODY, body_font, w - 20)
+    ogl = _wrap(_FLAG_OGL, small, w - 20)
+    bar_h = 14 + 18 * len(body) + 16 * len(ogl) + 10
+    canvas = Image.new(&quot;RGB&quot;, (w, face_h + bar_h), _BG)
+    canvas.paste(face, (0, 0))
+    draw = ImageDraw.Draw(canvas)
+    y = face_h + 8
+    for line in body:
+        draw.text((10, y), line, fill=_TITLE_GREY, font=body_font)
+        y += 18
+    y += 2
+    for line in ogl:
+        draw.text((10, y), line, fill=_FOOT_GREY, font=small)
+        y += 16
+    return canvas
+
+
+def classify(im):
+    &quot;&quot;&quot;Return a recaption kind, or None if this raster is left as-is.&quot;&quot;&quot;
+    w, h = im.size
+    if w == 900 and h == 560:
+        return &quot;mpl&quot;
+    if w == 2208 and h == 534:
+        return &quot;lod&quot;
+    if w == 656 and h == 604:
+        return &quot;swatch&quot;
+    if w == 1024 and h &gt;= 1024:
+        return &quot;flag&quot;
+    return None
+
+
+def rewrite_png(data):
+    &quot;&quot;&quot;Return a recaptioned, metadata-free PNG, or the input if not a known layout.&quot;&quot;&quot;
+    if not data or not data.startswith(b&quot;\x89PNG\r\n\x1a\n&quot;):
+        return data
+    im = Image.open(io.BytesIO(data))
+    kind = classify(im)
+    if kind == &quot;mpl&quot;:
+        out = _rewrite_mpl_preview(im)
+    elif kind == &quot;lod&quot;:
+        out = _rewrite_lod_strip(im)
+    elif kind == &quot;swatch&quot;:
+        out = _rewrite_swatch(im)
+    elif kind == &quot;flag&quot;:
+        out = _rewrite_flag_face(im)
+        if out is None:
+            return data
+    else:
+        return data
+    return _png_bytes(out)
+</pre>
+</main><footer><p class="attr">Street Wiki &copy; 2026 AI-tainment (<a href="https://github.com/AI-tainment">https://github.com/AI-tainment</a>), licensed under <a rel="license" href="https://creativecommons.org/licenses/by-nd/4.0/">CC BY-ND 4.0</a> (https://creativecommons.org/licenses/by-nd/4.0/). Full text: <a href="../../../LICENCE">LICENCE</a>. Third-party parts keep their own licences (<a href="../../../licences.html">Licences</a>).</p>Generated by <a href="../../index.html">wiki/build.py</a> from local sources. Contains public sector information licensed under the Open Government Licence v3.0. See <a href="../../../licences.html">Licences</a>.</footer>
+</body></html>

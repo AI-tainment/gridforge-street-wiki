@@ -323,7 +323,7 @@ def load_look(look_dir):
                 preview=None, preview_kind="images", images=imgs, materials=mats,
                 fields=[("Spec", mats.get("spec")), ("Bind", mats.get("bind_by")),
                         ("Colourways", ", ".join(mats.get("frame_colourways", [])))],
-                source_ref="Art look pack, kit/street_furniture/bus_stop/look/ (LOOK.md, PROVENANCE.md). Previews are Art's existing images (copied, not re-rendered).",
+                source_ref="Art look pack, kit/street_furniture/bus_stop/look/ (LOOK.md, PROVENANCE.md). Previews are Art's existing images; the wiki recasts the sign-off caption on the copies it ships.",
                 licence="Original procedural (intended CC0 once signed off, PROVENANCE.md); flag face 970: original construction + OGL v3.0",
                 notes=[])
     return mats, item
